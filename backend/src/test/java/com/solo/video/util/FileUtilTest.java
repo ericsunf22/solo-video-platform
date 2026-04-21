@@ -36,7 +36,7 @@ class FileUtilTest {
         assertFalse(FileUtil.isVideoFile("document.pdf"));
         assertFalse(FileUtil.isVideoFile("image.jpg"));
         assertFalse(FileUtil.isVideoFile(""));
-        assertFalse(FileUtil.isVideoFile(null));
+        assertFalse(FileUtil.isVideoFile((String) null));
     }
     
     @Test
@@ -49,7 +49,7 @@ class FileUtilTest {
         
         assertTrue(FileUtil.isVideoFile(mp4File.toFile()));
         assertFalse(FileUtil.isVideoFile(txtFile.toFile()));
-        assertFalse(FileUtil.isVideoFile(null));
+        assertFalse(FileUtil.isVideoFile((File) null));
         assertFalse(FileUtil.isVideoFile(new File("/nonexistent/path")));
     }
     
