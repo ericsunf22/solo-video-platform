@@ -1,6 +1,5 @@
 import { Heart, FileVideo } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { formatDuration, formatFileSize, formatDate } from '@/utils/format'
 import type { Video } from '@/types'
 

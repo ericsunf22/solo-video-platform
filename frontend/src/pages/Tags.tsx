@@ -13,7 +13,6 @@ export default function Tags() {
     { id: 4, name: '前端', color: '#e11d48', description: '前端开发相关', createdAt: '2024-01-04T00:00:00Z', updatedAt: '2024-01-04T00:00:00Z', videoCount: 8 },
   ])
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
   const [newTagName, setNewTagName] = useState('')
   const [newTagColor, setNewTagColor] = useState('#3b82f6')
   const [newTagDescription, setNewTagDescription] = useState('')

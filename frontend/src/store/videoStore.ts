@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Video, PageResponse, Tag } from '@/types'
+import { Video, PageResponse } from '@/types'
 
 interface VideoState {
   videos: Video[]

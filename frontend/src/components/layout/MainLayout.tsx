@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, Outlet } from 'react-router-dom'
 import { Home, Heart, Clock, Tag, Settings, Search, Menu, Upload, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -116,12 +116,7 @@ export default function MainLayout() {
         </header>
 
         <div className="flex-1 overflow-auto p-6">
-          {location.pathname === '/' && <Home />}
-          {location.pathname === '/favorites' && <Favorites />}
-          {location.pathname === '/history' && <History />}
-          {location.pathname === '/tags' && <Tags />}
-          {location.pathname === '/settings' && <Settings />}
-          {location.pathname.startsWith('/player') && <Player />}
+          <Outlet />
         </div>
       </main>
 
