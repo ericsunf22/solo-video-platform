@@ -1,4 +1,4 @@
-import { Settings, Folder, Database, Info } from 'lucide-react'
+import { Settings as SettingsIcon, Folder, Database, Info } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,7 +7,7 @@ export default function Settings() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <Settings className="w-8 h-8 text-gray-500" />
+        <SettingsIcon className="w-8 h-8 text-gray-500" />
         <h1 className="text-2xl font-bold text-gray-900">设置</h1>
       </div>
 
