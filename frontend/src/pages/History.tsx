@@ -1,5 +1,5 @@
 import { Clock, FileVideo } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { formatDuration, formatDate } from '@/utils/format'
 import type { PlayHistory } from '@/types'
 
