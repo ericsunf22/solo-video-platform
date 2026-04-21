@@ -8,7 +8,7 @@ import { formatDuration, formatFileSize, formatDate } from '@/utils/format'
 import type { Video } from '@/types'
 
 export default function Home() {
-  const { videos, loading, setVideos, setLoading, setPagination } = useVideoStore()
+  const { videos = [], loading, setVideos, setLoading, setPagination } = useVideoStore()
   const { viewMode, setViewMode } = useUIStore()
 
   useEffect(() => {

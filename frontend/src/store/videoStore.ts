@@ -17,7 +17,7 @@ interface VideoState {
   clearSelection: () => void
 }
 
-export const useVideoStore = create<VideoState>((set) => ({
+export const useVideoStore = create<VideoState>()((set) => ({
   videos: [],
   currentVideo: null,
   loading: false,
