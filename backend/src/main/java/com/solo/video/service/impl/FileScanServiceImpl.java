@@ -1,0 +1,175 @@
+package com.solo.video.service.impl;
+
+import com.solo.video.dto.response.ScanResultResponse;
+import com.solo.video.entity.Video;
+import com.solo.video.repository.VideoRepository;
+import com.solo.video.service.FileScanService;
+import com.solo.video.service.FileStorageService;
+import com.solo.video.util.FileUtil;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class FileScanServiceImpl implements FileScanService {
+    
+    private final VideoRepository videoRepository;
+    private final FileStorageService fileStorageService;
+    
+    private final AtomicInteger scanProgress = new AtomicInteger(0);
+    private final AtomicBoolean isScanning = new AtomicBoolean(false);
+    private final AtomicBoolean cancelRequested = new AtomicBoolean(false);
+    
+    @Override
+    @Transactional
+    public ScanResultResponse scanFolder(String folderPath, boolean recursive, boolean updateExisting) {
+        if (isScanning.get()) {
+            throw new IllegalStateException("扫描任务正在进行中");
+        }
+        
+        Path rootPath = Paths.get(folderPath).toAbsolutePath().normalize();
+        
+        if (!Files.exists(rootPath)) {
+            throw new IllegalArgumentException("文件夹不存在: " + folderPath);
+        }
+        
+        if (!Files.isDirectory(rootPath)) {
+            throw new IllegalArgumentException("不是有效的文件夹路径: " + folderPath);
+        }
+        
+        isScanning.set(true);
+        cancelRequested.set(false);
+        scanProgress.set(0);
+        
+        AtomicInteger newCount = new AtomicInteger(0);
+        AtomicInteger updatedCount = new AtomicInteger(0);
+        AtomicInteger skippedCount = new AtomicInteger(0);
+        List<Video> videosToSave = new ArrayList<>();
+        
+        try {
+            Files.walkFileTree(rootPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
+                    if (cancelRequested.get()) {
+                        return FileVisitResult.TERMINATE;
+                    }
+                    
+                    String fileName = path.getFileName().toString();
+                    if (FileUtil.isVideoFile(fileName)) {
+                        processVideoFile(path, fileName, updateExisting, newCount, updatedCount, skippedCount, videosToSave);
+                    }
+                    
+                    return FileVisitResult.CONTINUE;
+                }
+                
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    if (cancelRequested.get()) {
+                        return FileVisitResult.TERMINATE;
+                    }
+                    return recursive ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE;
+                }
+            });
+            
+            if (!videosToSave.isEmpty()) {
+                videoRepository.saveAll(videosToSave);
+            }
+            
+            log.info("文件夹扫描完成: 新增={}, 更新={}, 跳过={}", newCount.get(), updatedCount.get(), skippedCount.get());
+            
+            return ScanResultResponse.builder()
+                    .newVideos(newCount.get())
+                    .updatedVideos(updatedCount.get())
+                    .skippedVideos(skippedCount.get())
+                    .totalVideos(videoRepository.findAll().size())
+                    .build();
+                    
+        } catch (IOException e) {
+            log.error("文件夹扫描失败", e);
+            throw new RuntimeException("文件夹扫描失败: " + e.getMessage(), e);
+        } finally {
+            isScanning.set(false);
+            scanProgress.set(100);
+        }
+    }
+    
+    @Override
+    public ScanResultResponse scanFolder(String folderPath) {
+        return scanFolder(folderPath, true, false);
+    }
+    
+    @Override
+    public int getScanProgress() {
+        return scanProgress.get();
+    }
+    
+    @Override
+    public boolean isScanning() {
+        return isScanning.get();
+    }
+    
+    @Override
+    public void cancelScan() {
+        cancelRequested.set(true);
+        log.info("扫描任务已请求取消");
+    }
+    
+    private void processVideoFile(Path path, String fileName, boolean updateExisting,
+                                   AtomicInteger newCount, AtomicInteger updatedCount,
+                                   AtomicInteger skippedCount, List<Video> videosToSave) {
+        String absolutePath = path.toAbsolutePath().toString();
+        
+        try {
+            Optional<Video> existingVideo = videoRepository.findByFilePath(absolutePath);
+            
+            if (existingVideo.isPresent()) {
+                if (updateExisting) {
+                    Video video = existingVideo.get();
+                    try {
+                        video.setFileSize(Files.size(path));
+                        videosToSave.add(video);
+                        updatedCount.incrementAndGet();
+                        log.debug("已更新视频: {}", absolutePath);
+                    } catch (IOException e) {
+                        log.warn("无法读取文件大小: {}", absolutePath, e);
+                    }
+                } else {
+                    skippedCount.incrementAndGet();
+                    log.debug("视频已存在，跳过: {}", absolutePath);
+                }
+            } else {
+                Video video = new Video();
+                video.setTitle(FileUtil.getFileNameWithoutExtension(fileName));
+                video.setFilePath(absolutePath);
+                video.setFileName(fileName);
+                video.setFormat(FileUtil.getFileExtension(fileName));
+                video.setSourceType(Video.SourceType.SCANNED);
+                
+                try {
+                    video.setFileSize(Files.size(path));
+                } catch (IOException e) {
+                    log.warn("无法读取文件大小: {}", absolutePath, e);
+                }
+                
+                videosToSave.add(video);
+                newCount.incrementAndGet();
+                log.debug("发现新视频: {}", absolutePath);
+            }
+        } catch (Exception e) {
+            log.error("处理视频文件失败: {}", absolutePath, e);
+            skippedCount.incrementAndGet();
+        }
+    }
+}
