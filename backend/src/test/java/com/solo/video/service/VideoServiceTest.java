@@ -2,6 +2,7 @@ package com.solo.video.service;
 
 import com.solo.video.dto.response.VideoResponse;
 import com.solo.video.entity.Video;
+import com.solo.video.exception.VideoNotFoundException;
 import com.solo.video.mapper.VideoMapper;
 import com.solo.video.repository.VideoRepository;
 import com.solo.video.service.impl.VideoServiceImpl;
@@ -61,7 +62,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testGetVideoById_Success() {
+    void getVideoById_Success() {
         when(videoRepository.findById(1L)).thenReturn(Optional.of(testVideo));
         when(videoMapper.toResponse(testVideo)).thenReturn(testVideoResponse);
         
@@ -73,14 +74,14 @@ class VideoServiceTest {
     }
     
     @Test
-    void testGetVideoById_NotFound() {
+    void getVideoById_NotFound() {
         when(videoRepository.findById(999L)).thenReturn(Optional.empty());
         
-        assertThrows(RuntimeException.class, () -> videoService.getVideoById(999L));
+        assertThrows(VideoNotFoundException.class, () -> videoService.getVideoById(999L));
     }
     
     @Test
-    void testGetAllVideos_Success() {
+    void getAllVideos_Success() {
         Page<Video> videoPage = new PageImpl<>(Collections.singletonList(testVideo));
         when(videoRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(videoPage);
         when(videoMapper.toResponse(testVideo)).thenReturn(testVideoResponse);
@@ -92,7 +93,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testToggleFavorite_FromFalseToTrue() {
+    void toggleFavorite_FromFalseToTrue() {
         testVideo.setIsFavorite(false);
         when(videoRepository.findById(1L)).thenReturn(Optional.of(testVideo));
         
@@ -103,7 +104,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testToggleFavorite_FromTrueToFalse() {
+    void toggleFavorite_FromTrueToFalse() {
         testVideo.setIsFavorite(true);
         when(videoRepository.findById(1L)).thenReturn(Optional.of(testVideo));
         
@@ -114,7 +115,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testExistsById_True() {
+    void existsById_True() {
         when(videoRepository.existsById(1L)).thenReturn(true);
         
         boolean result = videoService.existsById(1L);
@@ -123,7 +124,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testExistsById_False() {
+    void existsById_False() {
         when(videoRepository.existsById(999L)).thenReturn(false);
         
         boolean result = videoService.existsById(999L);
@@ -132,7 +133,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testGetVideoByFilePath_Found() {
+    void getVideoByFilePath_Found() {
         when(videoRepository.findByFilePath("/test/video.mp4")).thenReturn(Optional.of(testVideo));
         
         Optional<Video> result = videoService.getVideoByFilePath("/test/video.mp4");
@@ -142,7 +143,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testGetVideoByFilePath_NotFound() {
+    void getVideoByFilePath_NotFound() {
         when(videoRepository.findByFilePath("/nonexistent.mp4")).thenReturn(Optional.empty());
         
         Optional<Video> result = videoService.getVideoByFilePath("/nonexistent.mp4");
@@ -151,7 +152,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testCountVideos() {
+    void countVideos() {
         when(videoRepository.count()).thenReturn(100L);
         
         long result = videoService.countVideos();
@@ -160,7 +161,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void testCountFavorites() {
+    void countFavorites() {
         when(videoRepository.countFavorites()).thenReturn(25L);
         
         long result = videoService.countFavorites();
