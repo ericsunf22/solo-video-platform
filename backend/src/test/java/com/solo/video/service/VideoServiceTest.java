@@ -62,7 +62,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void getVideoById_Success() {
+    void getVideoByIdSuccess() {
         when(videoRepository.findById(1L)).thenReturn(Optional.of(testVideo));
         when(videoMapper.toResponse(testVideo)).thenReturn(testVideoResponse);
         
@@ -74,7 +74,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void getVideoById_NotFound() {
+    void getVideoByIdNotFound() {
         when(videoRepository.findById(999L)).thenReturn(Optional.empty());
         
         assertThrows(VideoNotFoundException.class, () -> videoService.getVideoById(999L));
@@ -82,7 +82,7 @@ class VideoServiceTest {
     
     @SuppressWarnings({ "null", "unchecked" })
     @Test
-    void getAllVideos_Success() {
+    void getAllVideosSuccess() {
         Page<Video> videoPage = new PageImpl<>(Collections.singletonList(testVideo));
         when(videoRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(videoPage);
         when(videoMapper.toResponse(testVideo)).thenReturn(testVideoResponse);
@@ -95,7 +95,7 @@ class VideoServiceTest {
     
     @SuppressWarnings("null")
     @Test
-    void toggleFavorite_FromFalseToTrue() {
+    void toggleFavoriteFromFalseToTrue() {
         testVideo.setIsFavorite(false);
         when(videoRepository.findById(1L)).thenReturn(Optional.of(testVideo));
         
@@ -107,7 +107,7 @@ class VideoServiceTest {
     
     @SuppressWarnings("null")
     @Test
-    void toggleFavorite_FromTrueToFalse() {
+    void toggleFavoriteFromTrueToFalse() {
         testVideo.setIsFavorite(true);
         when(videoRepository.findById(1L)).thenReturn(Optional.of(testVideo));
         
@@ -118,7 +118,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void existsById_True() {
+    void existsByIdTrue() {
         when(videoRepository.existsById(1L)).thenReturn(true);
         
         boolean result = videoService.existsById(1L);
@@ -127,7 +127,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void existsById_False() {
+    void existsByIdFalse() {
         when(videoRepository.existsById(999L)).thenReturn(false);
         
         boolean result = videoService.existsById(999L);
@@ -136,7 +136,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void getVideoByFilePath_Found() {
+    void getVideoByFilePathFound() {
         when(videoRepository.findByFilePath("/test/video.mp4")).thenReturn(Optional.of(testVideo));
         
         Optional<Video> result = videoService.getVideoByFilePath("/test/video.mp4");
@@ -146,7 +146,7 @@ class VideoServiceTest {
     }
     
     @Test
-    void getVideoByFilePath_NotFound() {
+    void getVideoByFilePathNotFound() {
         when(videoRepository.findByFilePath("/nonexistent.mp4")).thenReturn(Optional.empty());
         
         Optional<Video> result = videoService.getVideoByFilePath("/nonexistent.mp4");

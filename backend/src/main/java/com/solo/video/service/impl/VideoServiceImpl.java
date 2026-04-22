@@ -173,9 +173,12 @@ public class VideoServiceImpl implements VideoService {
     @Override
     @Transactional
     public void deleteVideos(List<Long> ids) {
-        for (Long id : ids) {
-            deleteVideo(id);
+        List<String> filePaths = videoRepository.findFilePathsByIds(ids);
+        for (String filePath : filePaths) {
+            fileStorageService.deleteFile(filePath);
         }
+        videoRepository.deleteAllById(ids);
+        log.info("批量删除视频完成: count={}", ids.size());
     }
     
     @Override
@@ -200,25 +203,15 @@ public class VideoServiceImpl implements VideoService {
     @Override
     @Transactional
     public void addToFavorites(List<Long> videoIds) {
-        for (Long videoId : videoIds) {
-            Video video = getVideoEntityById(videoId);
-            if (!video.getIsFavorite()) {
-                video.setIsFavorite(true);
-                videoRepository.save(video);
-            }
-        }
+        int updatedCount = videoRepository.addToFavoritesByIds(videoIds);
+        log.info("批量添加收藏完成: updatedCount={}", updatedCount);
     }
     
     @Override
     @Transactional
     public void removeFromFavorites(List<Long> videoIds) {
-        for (Long videoId : videoIds) {
-            Video video = getVideoEntityById(videoId);
-            if (video.getIsFavorite()) {
-                video.setIsFavorite(false);
-                videoRepository.save(video);
-            }
-        }
+        int updatedCount = videoRepository.removeFromFavoritesByIds(videoIds);
+        log.info("批量取消收藏完成: updatedCount={}", updatedCount);
     }
     
     @SuppressWarnings("null")

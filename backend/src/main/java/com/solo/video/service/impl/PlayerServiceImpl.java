@@ -88,23 +88,25 @@ public class PlayerServiceImpl implements PlayerService {
     @Override
     @Transactional
     public void incrementPlayCount(Long videoId) {
-        PlayHistory playHistory = playHistoryRepository.findByVideoId(videoId)
-                .orElse(null);
+        int updatedCount = playHistoryRepository.incrementPlayCountByVideoId(videoId);
         
-        if (playHistory == null) {
-            @SuppressWarnings("null")
-            Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new IllegalArgumentException("视频不存在: " + videoId));
-            
-            playHistory = new PlayHistory();
-            playHistory.setVideo(video);
-            playHistory.setPlayCount(1);
-        } else {
-            playHistory.setPlayCount(playHistory.getPlayCount() + 1);
+        if (updatedCount > 0) {
+            log.info("播放计数已增加（原子更新）: videoId={}", videoId);
+            return;
         }
         
+        @SuppressWarnings("null")
+        Video video = videoRepository.findById(videoId)
+                .orElseThrow(() -> new IllegalArgumentException("视频不存在: " + videoId));
+        
+        PlayHistory playHistory = new PlayHistory();
+        playHistory.setVideo(video);
+        playHistory.setPlayCount(1);
+        playHistory.setProgress(0L);
+        playHistory.setTotalPlayTime(0L);
         playHistory.setLastPlayedAt(LocalDateTime.now());
+        
         playHistoryRepository.save(playHistory);
-        log.info("播放计数已增加: videoId={}", videoId);
+        log.info("播放计数已增加（新建记录）: videoId={}", videoId);
     }
 }

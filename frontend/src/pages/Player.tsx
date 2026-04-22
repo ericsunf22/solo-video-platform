@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, ChangeEvent, MouseEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { usePlayerStore } from '@/store/playerStore'
 import { formatDuration } from '@/utils/format'
+import { cn } from '@/utils/cn'
 import { videoService } from '@/services'
 import type { Video } from '@/types'
 
@@ -127,7 +128,12 @@ export default function Player() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">{video.title}</CardTitle>
               <Button variant="ghost" size="icon" onClick={toggleFavorite}>
-                <Heart className={`w-5 h-5 ${video.isFavorite ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
+                <Heart
+                  className={cn(
+                    'w-5 h-5',
+                    video.isFavorite ? 'text-red-500 fill-red-500' : 'text-gray-400'
+                  )}
+                />
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">

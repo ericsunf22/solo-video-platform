@@ -121,16 +121,33 @@ public class TagServiceImpl implements TagService {
             throw new BusinessException("视频不存在: " + videoId);
         }
         
+        List<Long> existingTagIds = tagRepository.findAllById(tagIds).stream()
+                .map(Tag::getId)
+                .toList();
+        
         for (Long tagId : tagIds) {
-            if (!tagRepository.existsById(tagId)) {
+            if (!existingTagIds.contains(tagId)) {
                 throw new BusinessException("标签不存在: " + tagId);
             }
-            if (!videoTagRepository.existsByVideoIdAndTagId(videoId, tagId)) {
-                com.solo.video.entity.VideoTag videoTag = new com.solo.video.entity.VideoTag();
+        }
+        
+        List<VideoTag> existingVideoTags = videoTagRepository.findByVideoId(videoId);
+        List<Long> existingTagIdsForVideo = existingVideoTags.stream()
+                .map(VideoTag::getTagId)
+                .toList();
+        
+        List<VideoTag> newVideoTags = new ArrayList<>();
+        for (Long tagId : tagIds) {
+            if (!existingTagIdsForVideo.contains(tagId)) {
+                VideoTag videoTag = new VideoTag();
                 videoTag.setVideoId(videoId);
                 videoTag.setTagId(tagId);
-                videoTagRepository.save(videoTag);
+                newVideoTags.add(videoTag);
             }
+        }
+        
+        if (!newVideoTags.isEmpty()) {
+            videoTagRepository.saveAll(newVideoTags);
         }
         
         log.info("标签已添加到视频: videoId={}, tagIds={}", videoId, tagIds);
