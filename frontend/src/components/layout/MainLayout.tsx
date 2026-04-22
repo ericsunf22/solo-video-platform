@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { Link, useLocation, Outlet } from 'react-router-dom'
 import { Home, Heart, Clock, Tag, Settings, Search, Menu, Upload, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useUIStore, useVideoStore, useToastStore } from '@/store'
 import { videoService } from '@/services/videoService'
+import { cn } from '@/utils/cn'
 
 const navItems = [
   { path: '/', label: '视频库', icon: Home },
@@ -59,7 +60,7 @@ export default function MainLayout() {
     loadScanFolderPath()
   }, [])
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     if (searchKeyword.trim()) {
       addRecentSearch(searchKeyword)
@@ -100,9 +101,10 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen bg-gray-50">
       <aside
-        className={`${
+        className={cn(
+          'bg-white border-r border-gray-200 transition-all duration-300 flex flex-col',
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-white border-r border-gray-200 transition-all duration-300 flex flex-col`}
+        )}
       >
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -113,7 +115,7 @@ export default function MainLayout() {
           </div>
         </div>
 
-        <nav className="flex-1 p-4">
+        <nav className="flex-1 p-4" aria-label="主导航">
           <ul className="space-y-2">
             {navItems.map((item) => {
               const Icon = item.icon
@@ -122,13 +124,15 @@ export default function MainLayout() {
                 <li key={item.path}>
                   <Link
                     to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
                       isActive
                         ? 'bg-blue-50 text-blue-600'
                         : 'text-gray-600 hover:bg-gray-100'
-                    }`}
+                    )}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-5 h-5" aria-hidden="true" />
                     {sidebarOpen && <span>{item.label}</span>}
                   </Link>
                 </li>

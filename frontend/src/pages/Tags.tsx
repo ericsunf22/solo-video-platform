@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, MouseEvent } from 'react'
 import { Tag, Plus, Edit2, Trash2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/utils/cn'
 import type { Tag as TagType } from '@/types'
 
 export default function Tags() {
@@ -19,7 +20,7 @@ export default function Tags() {
 
   const colorOptions = ['#3b82f6', '#3178c6', '#339933', '#e11d48', '#f59e0b', '#8b5cf6', '#ec4899']
 
-  const handleCreateTag = () => {
+  const handleCreateTag = (): void => {
     if (!newTagName.trim()) return
     const newTag: TagType = {
       id: Date.now(),
@@ -37,7 +38,7 @@ export default function Tags() {
     setShowCreateForm(false)
   }
 
-  const handleDeleteTag = (id: number) => {
+  const handleDeleteTag = (id: number): void => {
     setTags(tags.filter((t) => t.id !== id))
   }
 
@@ -83,11 +84,15 @@ export default function Tags() {
                   {colorOptions.map((color) => (
                     <button
                       key={color}
-                      className={`w-8 h-8 rounded-full border-2 ${
+                      type="button"
+                      className={cn(
+                        'w-8 h-8 rounded-full border-2',
                         newTagColor === color ? 'border-gray-900' : 'border-transparent'
-                      }`}
+                      )}
                       style={{ backgroundColor: color }}
                       onClick={() => setNewTagColor(color)}
+                      aria-label={`选择颜色 ${color}`}
+                      aria-pressed={newTagColor === color}
                     />
                   ))}
                 </div>

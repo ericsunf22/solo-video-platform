@@ -5,7 +5,100 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useVideoStore, useUIStore } from '@/store'
 import { videoService } from '@/services'
 import { formatDuration, formatFileSize, formatDate } from '@/utils/format'
+import { cn } from '@/utils/cn'
 import type { Video } from '@/types'
+
+function Play({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </svg>
+  )
+}
+
+interface VideoCardProps {
+  video: Video
+  onClick?: () => void
+}
+
+const VideoCard = ({ video, onClick }: VideoCardProps) => (
+  <Card 
+    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+    onClick={onClick}
+    role="button"
+    tabIndex={0}
+    aria-label={`播放视频: ${video.title}`}
+  >
+    <div className="relative aspect-video bg-gray-900">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <FileVideo className="w-16 h-16 text-gray-600" aria-hidden="true" />
+      </div>
+      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+        {formatDuration(video.duration)}
+      </div>
+      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <Play className="w-16 h-16 text-white" aria-hidden="true" />
+      </div>
+    </div>
+    <CardContent className="p-4">
+      <h3 className="font-medium text-gray-900 truncate mb-1">{video.title}</h3>
+      <div className="flex items-center gap-4 text-xs text-gray-500">
+        <span className="flex items-center gap-1">
+          <Eye className="w-3 h-3" aria-hidden="true" />
+          {formatFileSize(video.fileSize)}
+        </span>
+        <span className="flex items-center gap-1">
+          <Clock className="w-3 h-3" aria-hidden="true" />
+          {formatDate(video.createdAt)}
+        </span>
+      </div>
+    </CardContent>
+  </Card>
+)
+
+interface VideoRowProps {
+  video: Video
+  onClick?: () => void
+}
+
+const VideoRow = ({ video, onClick }: VideoRowProps) => (
+  <div 
+    className="flex items-center gap-4 p-4 bg-white rounded-lg border hover:border-blue-300 transition-colors cursor-pointer"
+    onClick={onClick}
+    role="button"
+    tabIndex={0}
+    aria-label={`播放视频: ${video.title}`}
+  >
+    <div className="relative w-40 h-24 bg-gray-900 rounded overflow-hidden flex-shrink-0">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <FileVideo className="w-8 h-8 text-gray-600" aria-hidden="true" />
+      </div>
+      <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+        {formatDuration(video.duration)}
+      </div>
+    </div>
+    <div className="flex-1 min-w-0">
+      <h3 className="font-medium text-gray-900 truncate">{video.title}</h3>
+      <p className="text-sm text-gray-500 truncate mt-1">{video.description}</p>
+      <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+        <span>{formatFileSize(video.fileSize)}</span>
+        <span>{video.resolution}</span>
+        <span>{formatDate(video.createdAt)}</span>
+      </div>
+    </div>
+  </div>
+)
 
 export default function Home() {
   const { videos = [], loading, setVideos, setLoading, setPagination, needRefresh, markRefreshed } = useVideoStore()
@@ -36,76 +129,6 @@ export default function Home() {
     }
   }, [needRefresh, loadVideos, markRefreshed])
 
-  const VideoCard = ({ video }: { video: Video }) => (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">
-      <div className="relative aspect-video bg-gray-900">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <FileVideo className="w-16 h-16 text-gray-600" />
-        </div>
-        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-          {formatDuration(video.duration)}
-        </div>
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Play className="w-16 h-16 text-white" />
-        </div>
-      </div>
-      <CardContent className="p-4">
-        <h3 className="font-medium text-gray-900 truncate mb-1">{video.title}</h3>
-        <div className="flex items-center gap-4 text-xs text-gray-500">
-          <span className="flex items-center gap-1">
-            <Eye className="w-3 h-3" />
-            {formatFileSize(video.fileSize)}
-          </span>
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {formatDate(video.createdAt)}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  )
-
-  const VideoRow = ({ video }: { video: Video }) => (
-    <div className="flex items-center gap-4 p-4 bg-white rounded-lg border hover:border-blue-300 transition-colors cursor-pointer">
-      <div className="relative w-40 h-24 bg-gray-900 rounded overflow-hidden flex-shrink-0">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <FileVideo className="w-8 h-8 text-gray-600" />
-        </div>
-        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
-          {formatDuration(video.duration)}
-        </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <h3 className="font-medium text-gray-900 truncate">{video.title}</h3>
-        <p className="text-sm text-gray-500 truncate mt-1">{video.description}</p>
-        <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-          <span>{formatFileSize(video.fileSize)}</span>
-          <span>{video.resolution}</span>
-          <span>{formatDate(video.createdAt)}</span>
-        </div>
-      </div>
-    </div>
-  )
-
-  function Play({ className }: { className?: string }) {
-    return (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={className}
-      >
-        <polygon points="6 3 20 12 6 21 6 3" />
-      </svg>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -123,15 +146,17 @@ export default function Home() {
             variant={viewMode === 'grid' ? 'default' : 'outline'}
             size="icon"
             onClick={() => setViewMode('grid')}
+            aria-label="网格视图"
           >
-            <Grid className="w-4 h-4" />
+            <Grid className="w-4 h-4" aria-hidden="true" />
           </Button>
           <Button
             variant={viewMode === 'list' ? 'default' : 'outline'}
             size="icon"
             onClick={() => setViewMode('list')}
+            aria-label="列表视图"
           >
-            <List className="w-4 h-4" />
+            <List className="w-4 h-4" aria-hidden="true" />
           </Button>
         </div>
       </div>
