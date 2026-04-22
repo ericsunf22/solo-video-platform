@@ -1,6 +1,7 @@
 package com.solo.video.service;
 
 import com.solo.video.dto.request.VideoUpdateRequest;
+import com.solo.video.dto.response.BatchUploadResult;
 import com.solo.video.dto.response.VideoResponse;
 import com.solo.video.entity.Video;
 import org.springframework.data.domain.Page;
@@ -23,7 +24,7 @@ public interface VideoService {
     
     VideoResponse uploadVideo(MultipartFile file, String title, String description);
     
-    List<VideoResponse> uploadVideos(List<MultipartFile> files);
+    BatchUploadResult uploadVideos(List<MultipartFile> files);
     
     VideoResponse updateVideo(Long id, VideoUpdateRequest request);
     

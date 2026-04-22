@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { Grid, List, Eye, Clock, FileVideo } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,14 +8,10 @@ import { formatDuration, formatFileSize, formatDate } from '@/utils/format'
 import type { Video } from '@/types'
 
 export default function Home() {
-  const { videos, loading, setVideos, setLoading, setPagination } = useVideoStore()
+  const { videos = [], loading, setVideos, setLoading, setPagination, needRefresh, markRefreshed } = useVideoStore()
   const { viewMode, setViewMode } = useUIStore()
 
-  useEffect(() => {
-    loadVideos()
-  }, [])
-
-  const loadVideos = async () => {
+  const loadVideos = useCallback(async () => {
     setLoading(true)
     try {
       const response = await videoService.getVideos({ page: 1, size: 20 })
@@ -23,65 +19,22 @@ export default function Home() {
       setPagination(response)
     } catch (error) {
       console.error('Failed to load videos:', error)
-      setVideos(mockVideos)
+      setVideos([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [setVideos, setLoading, setPagination])
 
-  const mockVideos: Video[] = [
-    {
-      id: 1,
-      title: 'React 18 新特性详解',
-      description: '深入讲解 React 18 的新特性',
-      filePath: '/storage/videos/react18.mp4',
-      fileName: 'react18.mp4',
-      fileSize: 1024 * 1024 * 256,
-      duration: 3600,
-      format: 'mp4',
-      resolution: '1920x1080',
-      coverPath: null,
-      sourceType: 'UPLOADED',
-      isFavorite: true,
-      createdAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-15T10:30:00Z',
-      tags: [],
-    },
-    {
-      id: 2,
-      title: 'TypeScript 高级类型技巧',
-      description: 'TypeScript 类型系统深度解析',
-      filePath: '/storage/videos/typescript.mp4',
-      fileName: 'typescript.mp4',
-      fileSize: 1024 * 1024 * 512,
-      duration: 7200,
-      format: 'mp4',
-      resolution: '1920x1080',
-      coverPath: null,
-      sourceType: 'SCANNED',
-      isFavorite: false,
-      createdAt: '2024-01-14T15:20:00Z',
-      updatedAt: '2024-01-14T15:20:00Z',
-      tags: [],
-    },
-    {
-      id: 3,
-      title: 'Node.js 性能优化实战',
-      description: 'Node.js 应用性能调优指南',
-      filePath: '/storage/videos/nodejs.mp4',
-      fileName: 'nodejs.mp4',
-      fileSize: 1024 * 1024 * 384,
-      duration: 5400,
-      format: 'avi',
-      resolution: '1280x720',
-      coverPath: null,
-      sourceType: 'UPLOADED',
-      isFavorite: true,
-      createdAt: '2024-01-13T09:00:00Z',
-      updatedAt: '2024-01-13T09:00:00Z',
-      tags: [],
-    },
-  ]
+  useEffect(() => {
+    loadVideos()
+  }, [loadVideos])
+
+  useEffect(() => {
+    if (needRefresh) {
+      loadVideos()
+      markRefreshed()
+    }
+  }, [needRefresh, loadVideos, markRefreshed])
 
   const VideoCard = ({ video }: { video: Video }) => (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group">

@@ -1,69 +1,57 @@
-import { Clock, FileVideo } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Clock, FileVideo, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { formatDuration, formatDate } from '@/utils/format'
+import { videoService } from '@/services'
+import { useToastStore } from '@/store'
 import type { PlayHistory } from '@/types'
 
 export default function History() {
-  const mockHistory: PlayHistory[] = [
-    {
-      id: 1,
-      videoId: 1,
-      video: {
-        id: 1,
-        title: 'React 18 新特性详解',
-        description: '深入讲解 React 18 的新特性',
-        filePath: '/storage/videos/react18.mp4',
-        fileName: 'react18.mp4',
-        fileSize: 1024 * 1024 * 256,
-        duration: 3600,
-        format: 'mp4',
-        resolution: '1920x1080',
-        coverPath: null,
-        sourceType: 'UPLOADED',
-        isFavorite: true,
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: '2024-01-15T10:30:00Z',
-        tags: [],
-      },
-      progress: 1800,
-      playCount: 3,
-      totalPlayTime: 7200,
-      lastPlayedAt: '2024-01-18T14:30:00Z',
-      createdAt: '2024-01-15T10:30:00Z',
-      updatedAt: '2024-01-18T14:30:00Z',
-    },
-    {
-      id: 2,
-      videoId: 2,
-      video: {
-        id: 2,
-        title: 'TypeScript 高级类型技巧',
-        description: 'TypeScript 类型系统深度解析',
-        filePath: '/storage/videos/typescript.mp4',
-        fileName: 'typescript.mp4',
-        fileSize: 1024 * 1024 * 512,
-        duration: 7200,
-        format: 'mp4',
-        resolution: '1920x1080',
-        coverPath: null,
-        sourceType: 'SCANNED',
-        isFavorite: false,
-        createdAt: '2024-01-14T15:20:00Z',
-        updatedAt: '2024-01-14T15:20:00Z',
-        tags: [],
-      },
-      progress: 3600,
-      playCount: 2,
-      totalPlayTime: 3600,
-      lastPlayedAt: '2024-01-17T10:00:00Z',
-      createdAt: '2024-01-14T15:20:00Z',
-      updatedAt: '2024-01-17T10:00:00Z',
-    },
-  ]
+  const [historyList, setHistoryList] = useState<PlayHistory[]>([])
+  const [loading, setLoading] = useState(false)
+  const { error, success } = useToastStore()
+
+  const loadHistory = async () => {
+    setLoading(true)
+    try {
+      const response = await videoService.getPlayHistory({ page: 1, size: 50 })
+      setHistoryList(response.list || [])
+    } catch (error) {
+      console.error('Failed to load play history:', error)
+      setHistoryList([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadHistory()
+  }, [])
+
+  const handleClearHistory = async () => {
+    if (!confirm('确定要清空所有播放历史吗？')) return
+    try {
+      await videoService.clearPlayHistory()
+      setHistoryList([])
+      success('播放历史已清空')
+    } catch (err) {
+      console.error('Failed to clear play history:', err)
+      error('清空播放历史失败')
+    }
+  }
 
   const getProgressPercent = (progress: number, duration: number | null) => {
     if (!duration || duration === 0) return 0
     return (progress / duration) * 100
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   return (
@@ -72,10 +60,19 @@ export default function History() {
         <div className="flex items-center gap-3">
           <Clock className="w-8 h-8 text-blue-500" />
           <h1 className="text-2xl font-bold text-gray-900">播放历史</h1>
+          <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+            {historyList.length} 条记录
+          </span>
         </div>
+        {historyList.length > 0 && (
+          <Button variant="destructive" size="sm" onClick={handleClearHistory}>
+            <Trash2 className="w-4 h-4 mr-2" />
+            清空历史
+          </Button>
+        )}
       </div>
 
-      {mockHistory.length === 0 ? (
+      {historyList.length === 0 ? (
         <div className="text-center py-16">
           <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">暂无播放记录</h3>
@@ -83,7 +80,7 @@ export default function History() {
         </div>
       ) : (
         <div className="space-y-4">
-          {mockHistory.map((history) => (
+          {historyList.map((history) => (
             <Card key={history.id} className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
               <div className="flex items-center gap-4 p-4">
                 <div className="relative w-48 h-28 bg-gray-900 rounded-lg overflow-hidden flex-shrink-0">

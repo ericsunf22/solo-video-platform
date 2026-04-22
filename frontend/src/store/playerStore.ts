@@ -22,7 +22,7 @@ interface PlayerState {
   reset: () => void
 }
 
-export const usePlayerStore = create<PlayerState>((set) => ({
+export const usePlayerStore = create<PlayerState>()((set) => ({
   isPlaying: false,
   currentTime: 0,
   duration: 0,

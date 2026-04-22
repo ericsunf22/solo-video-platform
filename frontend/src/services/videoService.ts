@@ -1,5 +1,5 @@
 import api from './api'
-import { Video, PageResponse, ApiResponse, VideoUploadRequest, VideoUpdateRequest, ScanResultResponse, FolderScanRequest } from '@/types'
+import { Video, PageResponse, ApiResponse, VideoUploadRequest, VideoUpdateRequest, ScanResultResponse, FolderScanRequest, PlayHistory, PlayProgressRequest } from '@/types'
 
 export const videoService = {
   getVideos: async (params: {
@@ -75,5 +75,84 @@ export const videoService = {
 
   getVideoStream: (id: number): string => {
     return `/api/stream/${id}`
+  },
+
+  getFavorites: async (params: {
+    page?: number
+    size?: number
+    keyword?: string
+    sortBy?: string
+    sortOrder?: string
+  } = {}): Promise<PageResponse<Video>> => {
+    const response = await api.get<ApiResponse<PageResponse<Video>>>('/favorites', { params })
+    return response.data.data
+  },
+
+  toggleFavorite: async (videoId: number): Promise<boolean> => {
+    const response = await api.post<ApiResponse<{ isFavorite: boolean }>>(`/favorites/toggle/${videoId}`)
+    return response.data.data.isFavorite
+  },
+
+  addToFavorites: async (videoIds: number[]): Promise<void> => {
+    await api.post('/favorites/batch', { videoIds })
+  },
+
+  removeFromFavorites: async (videoIds: number[]): Promise<void> => {
+    await api.delete('/favorites/batch', { data: { videoIds } })
+  },
+
+  getPlayHistory: async (params: {
+    page?: number
+    size?: number
+  } = {}): Promise<PageResponse<PlayHistory>> => {
+    const response = await api.get<ApiResponse<PageResponse<PlayHistory>>>('/player/history', { params })
+    return response.data.data
+  },
+
+  savePlayProgress: async (request: PlayProgressRequest): Promise<void> => {
+    await api.post('/player/progress', request)
+  },
+
+  getPlayProgress: async (videoId: number): Promise<PlayHistory | null> => {
+    try {
+      const response = await api.get<ApiResponse<PlayHistory>>(`/player/progress/${videoId}`)
+      return response.data.data
+    } catch (error) {
+      return null
+    }
+  },
+
+  incrementPlayCount: async (videoId: number): Promise<void> => {
+    await api.post(`/player/play/${videoId}`)
+  },
+
+  clearPlayHistory: async (): Promise<void> => {
+    await api.delete('/player/history')
+  },
+
+  getAllSettings: async (): Promise<Map<string, string>> => {
+    const response = await api.get<ApiResponse<Map<string, string>>>('/settings')
+    return response.data.data
+  },
+
+  getSetting: async (key: string, defaultValue?: string): Promise<string> => {
+    const params: Record<string, string> = {}
+    if (defaultValue !== undefined) {
+      params.defaultValue = defaultValue
+    }
+    const response = await api.get<ApiResponse<string>>(`/settings/${key}`, { params })
+    return response.data.data
+  },
+
+  setSetting: async (key: string, value: string, description?: string): Promise<void> => {
+    const body: Record<string, string> = { value }
+    if (description) {
+      body.description = description
+    }
+    await api.put(`/settings/${key}`, body)
+  },
+
+  deleteSetting: async (key: string): Promise<void> => {
+    await api.delete(`/settings/${key}`)
   },
 }
