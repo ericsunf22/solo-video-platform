@@ -23,6 +23,6 @@ public interface PlayHistoryRepository extends JpaRepository<PlayHistory, Long> 
     void deleteByVideoId(Long videoId);
     
     @Modifying
-    @Query("UPDATE PlayHistory p SET p.playCount = p.playCount + 1, p.lastPlayedAt = CURRENT_TIMESTAMP WHERE p.videoId = :videoId")
+    @Query("UPDATE PlayHistory p SET p.playCount = p.playCount + 1, p.lastPlayedAt = CURRENT_TIMESTAMP WHERE p.video.id = :videoId")
     int incrementPlayCountByVideoId(@Param("videoId") Long videoId);
 }
