@@ -1,6 +1,5 @@
 #!/bin/bash
-set -euo pipefail
-
+set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${SCRIPT_DIR}/backend"
 FRONTEND_DIR="${SCRIPT_DIR}/frontend"
@@ -177,6 +176,30 @@ is_frontend_running() {
     lsof -n -P -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1
 }
 
+wait_for_port() {
+    local port=$1
+    local service_name=$2
+    local max_wait=$3
+    
+    log_info "等待 ${service_name} 启动 (端口 ${port})..."
+    
+    local wait_count=0
+    while [ ${wait_count} -lt ${max_wait} ]; do
+        if lsof -n -P -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
+            log_info "${service_name} 启动成功 (端口 ${port})"
+            return 0
+        fi
+        sleep 1
+        wait_count=$((wait_count + 1))
+        if [ $((wait_count % 5)) -eq 0 ]; then
+            log_info "  已等待 ${wait_count} 秒..."
+        fi
+    done
+    
+    log_error "${service_name} 启动超时 (等待 ${max_wait} 秒)"
+    return 1
+}
+
 stop_backend() {
     log_info "=== 停止后端服务 ==="
     
@@ -207,9 +230,12 @@ stop_backend() {
     if [ "${stopped}" = true ]; then
         local max_wait=15
         local wait_count=0
-        while is_backend_running && [ ${wait_count} -lt ${max_wait} ]; do
+        while [ ${wait_count} -lt ${max_wait} ]; do
+            if ! is_backend_running; then
+                break
+            fi
             sleep 1
-            ((wait_count++))
+            wait_count=$((wait_count + 1))
         done
     fi
     
@@ -251,9 +277,12 @@ stop_frontend() {
     if [ "${stopped}" = true ]; then
         local max_wait=15
         local wait_count=0
-        while is_frontend_running && [ ${wait_count} -lt ${max_wait} ]; do
+        while [ ${wait_count} -lt ${max_wait} ]; do
+            if ! is_frontend_running; then
+                break
+            fi
             sleep 1
-            ((wait_count++))
+            wait_count=$((wait_count + 1))
         done
     fi
     
@@ -288,7 +317,10 @@ compile_backend() {
     cd "${BACKEND_DIR}"
     
     log_info "执行: mvn clean install -DskipTests"
-    mvn clean install -DskipTests -q
+    if ! mvn clean install -DskipTests -q; then
+        log_error "后端编译失败"
+        exit 1
+    fi
     
     log_info "后端编译成功"
     echo ""
@@ -299,7 +331,10 @@ compile_frontend() {
     cd "${FRONTEND_DIR}"
     
     log_info "执行: npm run build"
-    npm run build
+    if ! npm run build; then
+        log_error "前端编译失败"
+        exit 1
+    fi
     
     log_info "前端编译成功"
     echo ""
@@ -326,31 +361,6 @@ compile_projects() {
 create_log_dirs() {
     mkdir -p "${BACKEND_DIR}/logs"
     mkdir -p "${FRONTEND_DIR}/logs"
-}
-
-wait_for_port() {
-    local port=$1
-    local service_name=$2
-    local max_wait=$3
-    
-    log_info "等待 ${service_name} 启动 (端口 ${port})..."
-    
-    local wait_count=0
-    while ! lsof -n -P -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1 && [ ${wait_count} -lt ${max_wait} ]; do
-        sleep 1
-        ((wait_count++))
-        if [ $((wait_count % 5)) -eq 0 ]; then
-            log_info "  已等待 ${wait_count} 秒..."
-        fi
-    done
-    
-    if lsof -n -P -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
-        log_info "${service_name} 启动成功 (端口 ${port})"
-        return 0
-    else
-        log_error "${service_name} 启动超时 (等待 ${max_wait} 秒)"
-        return 1
-    fi
 }
 
 start_backend() {
