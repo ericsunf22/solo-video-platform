@@ -75,6 +75,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new FileStorageException("文件不能为空");
         }
         
+        @SuppressWarnings("null")
         String originalFileName = StringUtils.cleanPath(file.getOriginalFilename());
         if (originalFileName == null || originalFileName.isEmpty()) {
             throw new FileStorageException("文件名不能为空");

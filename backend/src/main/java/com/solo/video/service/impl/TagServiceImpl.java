@@ -28,6 +28,7 @@ public class TagServiceImpl implements TagService {
     private final VideoTagRepository videoTagRepository;
     private final TagMapper tagMapper;
     
+    @SuppressWarnings("null")
     @Override
     public List<TagResponse> getAllTags(String keyword, String sortBy, String sortOrder) {
         List<Tag> tags;
@@ -46,6 +47,7 @@ public class TagServiceImpl implements TagService {
         return tagMapper.toResponseList(tags);
     }
     
+    @SuppressWarnings("null")
     @Override
     public TagResponse getTagById(Long id) {
         Tag tag = tagRepository.findById(id)
@@ -71,6 +73,7 @@ public class TagServiceImpl implements TagService {
         return tagMapper.toResponse(savedTag);
     }
     
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public TagResponse updateTag(Long id, TagCreateRequest request) {
@@ -97,6 +100,7 @@ public class TagServiceImpl implements TagService {
         return tagMapper.toResponse(savedTag);
     }
     
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public void deleteTag(Long id) {
@@ -109,6 +113,7 @@ public class TagServiceImpl implements TagService {
         log.info("标签已删除: id={}", id);
     }
     
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public void addTagsToVideo(Long videoId, List<Long> tagIds) {
