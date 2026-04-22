@@ -1,5 +1,6 @@
 package com.solo.video.service.impl;
 
+import com.solo.video.dto.VideoMetadata;
 import com.solo.video.dto.request.VideoUpdateRequest;
 import com.solo.video.dto.response.BatchUploadResult;
 import com.solo.video.dto.response.UploadFailure;
@@ -9,6 +10,7 @@ import com.solo.video.exception.VideoNotFoundException;
 import com.solo.video.mapper.VideoMapper;
 import com.solo.video.repository.VideoRepository;
 import com.solo.video.service.FileStorageService;
+import com.solo.video.service.VideoMetadataService;
 import com.solo.video.service.VideoService;
 import com.solo.video.util.FileUtil;
 import com.solo.video.util.StringUtil;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -38,6 +41,7 @@ public class VideoServiceImpl implements VideoService {
     
     private final VideoRepository videoRepository;
     private final FileStorageService fileStorageService;
+    private final VideoMetadataService videoMetadataService;
     private final VideoMapper videoMapper;
     
     @SuppressWarnings("null")
@@ -137,7 +141,48 @@ public class VideoServiceImpl implements VideoService {
         Video savedVideo = videoRepository.save(video);
         log.info("视频上传成功: id={}, filePath={}", savedVideo.getId(), savedVideo.getFilePath());
         
+        extractAndSetMetadata(savedVideo);
+        savedVideo = videoRepository.save(savedVideo);
+        
         return videoMapper.toResponse(savedVideo);
+    }
+    
+    private void extractAndSetMetadata(Video video) {
+        if (!videoMetadataService.isFFmpegAvailable()) {
+            log.debug("FFmpeg 不可用，跳过元数据提取: {}", video.getFilePath());
+            return;
+        }
+        
+        try {
+            File videoFile = fileStorageService.getFile(video.getFilePath());
+            if (videoFile == null || !videoFile.exists()) {
+                log.warn("视频文件不存在，无法提取元数据: {}", video.getFilePath());
+                return;
+            }
+            
+            VideoMetadata metadata = videoMetadataService.extractMetadata(videoFile.toPath());
+            
+            if (metadata.isSuccess()) {
+                if (metadata.getDuration() != null) {
+                    video.setDuration(metadata.getDuration());
+                    log.debug("提取到视频时长: {}秒", metadata.getDuration());
+                }
+                
+                if (metadata.getResolution() != null) {
+                    video.setResolution(metadata.getResolution());
+                    log.debug("提取到视频分辨率: {}", metadata.getResolution());
+                }
+                
+                if (metadata.getCoverPath() != null) {
+                    video.setCoverPath(metadata.getCoverPath());
+                    log.debug("提取到视频封面: {}", metadata.getCoverPath());
+                }
+            } else {
+                log.warn("元数据提取失败: {}", metadata.getErrorMessage());
+            }
+        } catch (Exception e) {
+            log.warn("提取元数据时出错: {}", video.getFilePath(), e);
+        }
     }
     
     @Override
