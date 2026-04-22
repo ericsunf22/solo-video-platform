@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo } from 'react'
-import { Grid, List, Eye, Clock, FileVideo, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Grid, List, Eye, Clock, FileVideo, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useVideoStore, useUIStore } from '@/store'
@@ -10,7 +10,7 @@ import type { Video, PageResponse } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
-function getCoverUrl(coverPath?: string): string | null {
+function getCoverUrl(coverPath: string | null | undefined): string | null {
   if (!coverPath) return null
   return `${API_BASE_URL}/api/covers/${encodeURIComponent(coverPath)}`
 }
