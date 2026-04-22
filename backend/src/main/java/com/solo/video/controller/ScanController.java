@@ -34,6 +34,10 @@ public class ScanController {
         Map<String, Object> result = new HashMap<>();
         result.put("progress", fileScanService.getScanProgress());
         result.put("isScanning", fileScanService.isScanning());
+        result.put("currentScanningFile", fileScanService.getCurrentScanningFile());
+        result.put("newVideos", fileScanService.getNewVideosCount());
+        result.put("updatedVideos", fileScanService.getUpdatedVideosCount());
+        result.put("skippedVideos", fileScanService.getSkippedVideosCount());
         return ResponseEntity.ok(ApiResponse.success(result));
     }
     

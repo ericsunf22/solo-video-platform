@@ -142,3 +142,4 @@ target/
 **/data/
 .trae/
 .vscode/
+storage/

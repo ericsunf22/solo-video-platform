@@ -67,8 +67,22 @@ export const videoService = {
     return response.data.data
   },
 
-  getScanProgress: async (): Promise<{ progress: number; status: string }> => {
-    const response = await api.get<ApiResponse<{ progress: number; status: string }>>('/scan/progress')
+  getScanProgress: async (): Promise<{
+    progress: number
+    isScanning: boolean
+    currentScanningFile: string
+    newVideos: number
+    updatedVideos: number
+    skippedVideos: number
+  }> => {
+    const response = await api.get<ApiResponse<{
+      progress: number
+      isScanning: boolean
+      currentScanningFile: string
+      newVideos: number
+      updatedVideos: number
+      skippedVideos: number
+    }>>('/scan/progress')
     return response.data.data
   },
 

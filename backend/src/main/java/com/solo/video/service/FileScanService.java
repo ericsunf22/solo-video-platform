@@ -13,4 +13,12 @@ public interface FileScanService {
     boolean isScanning();
     
     void cancelScan();
+    
+    String getCurrentScanningFile();
+    
+    int getNewVideosCount();
+    
+    int getUpdatedVideosCount();
+    
+    int getSkippedVideosCount();
 }

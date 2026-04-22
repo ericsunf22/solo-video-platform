@@ -1,6 +1,6 @@
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, FormEvent, useCallback, useRef } from 'react'
 import { Link, useLocation, Outlet } from 'react-router-dom'
-import { Home, Heart, Clock, Tag, Settings, Search, Menu, Upload, FolderOpen } from 'lucide-react'
+import { Home, Heart, Clock, Tag, Settings, Search, Menu, Upload, FolderOpen, X, CheckCircle, RefreshCw, FileVideo, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useUIStore, useVideoStore, useToastStore } from '@/store'
@@ -24,8 +24,33 @@ export default function MainLayout() {
   const [showScanDialog, setShowScanDialog] = useState(false)
   const [scanFolderPath, setScanFolderPath] = useState('')
   const [scanRecursive, setScanRecursive] = useState(true)
-  const [scanUpdateExisting, setScanUpdateExisting] = useState(false)
+  const [scanUpdateExisting, setScanUpdateExisting] = useState(true)
   const [isScanning, setIsScanning] = useState(false)
+  const [scanProgress, setScanProgress] = useState(0)
+  const [currentScanningFile, setCurrentScanningFile] = useState('')
+  const [scanStats, setScanStats] = useState({
+    newVideos: 0,
+    updatedVideos: 0,
+    skippedVideos: 0,
+  })
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchScanProgress = useCallback(async () => {
+    try {
+      const progress = await videoService.getScanProgress()
+      setScanProgress(progress.progress)
+      setCurrentScanningFile(progress.currentScanningFile)
+      setScanStats({
+        newVideos: progress.newVideos,
+        updatedVideos: progress.updatedVideos,
+        skippedVideos: progress.skippedVideos,
+      })
+      return progress.isScanning
+    } catch (err) {
+      console.error('获取扫描进度失败:', err)
+      return false
+    }
+  }, [])
 
   const loadScanFolderPath = async () => {
     try {
@@ -60,10 +85,32 @@ export default function MainLayout() {
     loadScanFolderPath()
   }, [])
 
+  useEffect(() => {
+    if (isScanning) {
+      pollIntervalRef.current = setInterval(fetchScanProgress, 500)
+    }
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [isScanning, fetchScanProgress])
+
   const handleSearch = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     if (searchKeyword.trim()) {
       addRecentSearch(searchKeyword)
+    }
+  }
+
+  const handleCancelScan = async () => {
+    try {
+      await videoService.cancelScan()
+      warning('扫描已取消')
+    } catch (err) {
+      console.error('取消扫描失败:', err)
     }
   }
 
@@ -74,6 +121,10 @@ export default function MainLayout() {
     }
 
     setIsScanning(true)
+    setScanProgress(0)
+    setCurrentScanningFile('')
+    setScanStats({ newVideos: 0, updatedVideos: 0, skippedVideos: 0 })
+
     try {
       await saveScanFolderPath(scanFolderPath)
 
@@ -83,18 +134,27 @@ export default function MainLayout() {
         updateExisting: scanUpdateExisting,
       })
 
+      setScanStats({
+        newVideos: result.newVideos,
+        updatedVideos: result.updatedVideos,
+        skippedVideos: result.skippedVideos,
+      })
+
       success(`扫描完成！新增视频: ${result.newVideos}, 更新视频: ${result.updatedVideos}, 跳过视频: ${result.skippedVideos}, 总视频数: ${result.totalVideos}`)
       
       if (result.newVideos > 0 || result.updatedVideos > 0) {
         triggerRefresh()
       }
       
-      setShowScanDialog(false)
+      setTimeout(() => {
+        setShowScanDialog(false)
+      }, 1500)
     } catch (err) {
       console.error('扫描失败:', err)
       error('扫描失败: ' + (err instanceof Error ? err.message : '未知错误'))
     } finally {
       setIsScanning(false)
+      setScanProgress(100)
     }
   }
 
@@ -226,54 +286,182 @@ export default function MainLayout() {
 
       {showScanDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">扫描本地文件夹</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  文件夹路径
-                </label>
-                <Input
-                  placeholder="请输入文件夹路径"
-                  value={scanFolderPath}
-                  onChange={(e) => setScanFolderPath(e.target.value)}
-                  disabled={isScanning}
-                />
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  'w-10 h-10 rounded-lg flex items-center justify-center',
+                  isScanning ? 'bg-blue-500' : 'bg-gray-100'
+                )}>
+                  {isScanning ? (
+                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  ) : (
+                    <FolderOpen className="w-5 h-5 text-gray-600" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">扫描本地文件夹</h2>
+                  {isScanning && (
+                    <p className="text-sm text-blue-600">正在扫描中，请稍候...</p>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={scanRecursive}
-                    onChange={(e) => setScanRecursive(e.target.checked)}
-                    disabled={isScanning}
-                    className="rounded"
-                  />
-                  <span className="text-sm">递归扫描子文件夹</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={scanUpdateExisting}
-                    onChange={(e) => setScanUpdateExisting(e.target.checked)}
-                    disabled={isScanning}
-                    className="rounded"
-                  />
-                  <span className="text-sm">更新已存在的视频</span>
-                </label>
-              </div>
+              {!isScanning && (
+                <button
+                  onClick={() => setShowScanDialog(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              )}
             </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button
-                variant="outline"
-                onClick={() => setShowScanDialog(false)}
-                disabled={isScanning}
-              >
-                取消
-              </Button>
-              <Button onClick={handleScanFolder} disabled={isScanning}>
-                {isScanning ? '扫描中...' : '开始扫描'}
-              </Button>
+
+            {!isScanning ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    文件夹路径
+                  </label>
+                  <Input
+                    placeholder="请输入文件夹路径，例如：/mnt/hdd/videos"
+                    value={scanFolderPath}
+                    onChange={(e) => setScanFolderPath(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-6 py-2">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={scanRecursive}
+                        onChange={(e) => setScanRecursive(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all flex items-center justify-center">
+                        {scanRecursive && (
+                          <CheckCircle className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">递归扫描子文件夹</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={scanUpdateExisting}
+                        onChange={(e) => setScanUpdateExisting(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all flex items-center justify-center">
+                        {scanUpdateExisting && (
+                          <CheckCircle className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">更新已存在的视频</span>
+                  </label>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-xs text-blue-700">
+                    <span className="font-medium">提示：</span>
+                    勾选「更新已存在的视频」将重新提取所有视频的时长和封面图。
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">扫描进度</span>
+                    <span className="text-sm font-medium text-blue-600">
+                      {scanProgress > 0 && scanProgress < 100 ? `${scanProgress}%` : '处理中...'}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300 ease-out relative"
+                      style={{ width: `${scanProgress > 0 && scanProgress < 100 ? scanProgress : 5}%` }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+
+                {currentScanningFile && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileVideo className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <span className="text-xs font-medium text-gray-600">当前处理</span>
+                    </div>
+                    <p className="text-xs text-gray-700 truncate font-mono">
+                      {currentScanningFile}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-green-50 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center mb-1">
+                      <FileVideo className="w-4 h-4 text-green-600" />
+                    </div>
+                    <p className="text-2xl font-bold text-green-600">{scanStats.newVideos}</p>
+                    <p className="text-xs text-green-700">新增视频</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center mb-1">
+                      <RefreshCw className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <p className="text-2xl font-bold text-blue-600">{scanStats.updatedVideos}</p>
+                    <p className="text-xs text-blue-700">更新视频</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center mb-1">
+                      <X className="w-4 h-4 text-gray-500" />
+                    </div>
+                    <p className="text-2xl font-bold text-gray-600">{scanStats.skippedVideos}</p>
+                    <p className="text-xs text-gray-700">跳过视频</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span>正在提取视频元数据...</span>
+                </div>
+              </div>
+            )}
+
+            <div className={cn(
+              'flex justify-end gap-2 mt-6',
+              isScanning && 'justify-center'
+            )}>
+              {!isScanning ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowScanDialog(false)}
+                  >
+                    取消
+                  </Button>
+                  <Button onClick={handleScanFolder}>
+                    开始扫描
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={handleCancelScan}
+                  className="gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  取消扫描
+                </Button>
+              )}
             </div>
           </div>
         </div>

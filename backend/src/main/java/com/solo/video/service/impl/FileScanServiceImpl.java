@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -32,6 +33,10 @@ public class FileScanServiceImpl implements FileScanService {
     private final AtomicInteger scanProgress = new AtomicInteger(0);
     private final AtomicBoolean isScanning = new AtomicBoolean(false);
     private final AtomicBoolean cancelRequested = new AtomicBoolean(false);
+    private final AtomicReference<String> currentScanningFile = new AtomicReference<>("");
+    private final AtomicInteger newVideosCount = new AtomicInteger(0);
+    private final AtomicInteger updatedVideosCount = new AtomicInteger(0);
+    private final AtomicInteger skippedVideosCount = new AtomicInteger(0);
     
     @Override
     @Transactional
@@ -53,6 +58,10 @@ public class FileScanServiceImpl implements FileScanService {
         isScanning.set(true);
         cancelRequested.set(false);
         scanProgress.set(0);
+        currentScanningFile.set("");
+        newVideosCount.set(0);
+        updatedVideosCount.set(0);
+        skippedVideosCount.set(0);
         
         AtomicInteger newCount = new AtomicInteger(0);
         AtomicInteger updatedCount = new AtomicInteger(0);
@@ -69,7 +78,11 @@ public class FileScanServiceImpl implements FileScanService {
                     
                     String fileName = path.getFileName().toString();
                     if (FileUtil.isVideoFile(fileName)) {
+                        currentScanningFile.set(path.toString());
                         processVideoFile(path, fileName, updateExisting, newCount, updatedCount, skippedCount, videosToSave);
+                        newVideosCount.set(newCount.get());
+                        updatedVideosCount.set(updatedCount.get());
+                        skippedVideosCount.set(skippedCount.get());
                     }
                     
                     return FileVisitResult.CONTINUE;
@@ -80,6 +93,7 @@ public class FileScanServiceImpl implements FileScanService {
                     if (cancelRequested.get()) {
                         return FileVisitResult.TERMINATE;
                     }
+                    currentScanningFile.set(dir.toString());
                     return recursive ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE;
                 }
             });
@@ -103,6 +117,7 @@ public class FileScanServiceImpl implements FileScanService {
         } finally {
             isScanning.set(false);
             scanProgress.set(100);
+            currentScanningFile.set("");
         }
     }
     
@@ -127,6 +142,26 @@ public class FileScanServiceImpl implements FileScanService {
         log.info("扫描任务已请求取消");
     }
     
+    @Override
+    public String getCurrentScanningFile() {
+        return currentScanningFile.get();
+    }
+    
+    @Override
+    public int getNewVideosCount() {
+        return newVideosCount.get();
+    }
+    
+    @Override
+    public int getUpdatedVideosCount() {
+        return updatedVideosCount.get();
+    }
+    
+    @Override
+    public int getSkippedVideosCount() {
+        return skippedVideosCount.get();
+    }
+    
     private void processVideoFile(Path path, String fileName, boolean updateExisting,
                                    AtomicInteger newCount, AtomicInteger updatedCount,
                                    AtomicInteger skippedCount, List<Video> videosToSave) {
@@ -140,15 +175,15 @@ public class FileScanServiceImpl implements FileScanService {
                     Video video = existingVideo.get();
                     try {
                         video.setFileSize(Files.size(path));
-                        
-                        extractAndSetMetadata(video, path);
-                        
-                        videosToSave.add(video);
-                        updatedCount.incrementAndGet();
-                        log.debug("已更新视频: {}", absolutePath);
                     } catch (IOException e) {
                         log.warn("无法读取文件大小: {}", absolutePath, e);
                     }
+                    
+                    extractAndSetMetadata(video, path);
+                    
+                    videosToSave.add(video);
+                    updatedCount.incrementAndGet();
+                    log.debug("已更新视频: {}", absolutePath);
                 } else {
                     skippedCount.incrementAndGet();
                     log.debug("视频已存在，跳过: {}", absolutePath);
@@ -185,6 +220,8 @@ public class FileScanServiceImpl implements FileScanService {
             return;
         }
         
+        String oldCoverPath = video.getCoverPath();
+        
         try {
             VideoMetadata metadata = videoMetadataService.extractMetadata(path);
             
@@ -202,6 +239,11 @@ public class FileScanServiceImpl implements FileScanService {
                 if (metadata.getCoverPath() != null) {
                     video.setCoverPath(metadata.getCoverPath());
                     log.debug("提取到视频封面: {}", metadata.getCoverPath());
+                    
+                    if (oldCoverPath != null && !oldCoverPath.equals(metadata.getCoverPath())) {
+                        videoMetadataService.deleteCover(oldCoverPath);
+                        log.debug("已删除旧封面: {}", oldCoverPath);
+                    }
                 }
             } else {
                 log.warn("元数据提取失败: {}", metadata.getErrorMessage());

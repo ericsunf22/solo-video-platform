@@ -44,3 +44,9 @@ app:
       quality: 0.8
     stream:
       buffer-size: 8192
+  backup:
+    path: ./storage/backups
+    keep-days: 7
+    scheduled:
+      enabled: true
+      cron: 0 0 2 * * ?
