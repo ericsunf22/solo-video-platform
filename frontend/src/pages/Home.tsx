@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useVideoStore, useUIStore } from '@/store'
 import { videoService } from '@/services'
 import { formatDuration, formatFileSize, formatDate } from '@/utils/format'
-import { cn } from '@/utils/cn'
 import type { Video } from '@/types'
 
 function Play({ className }: { className?: string }) {

@@ -170,6 +170,7 @@ public class VideoServiceImpl implements VideoService {
         log.info("视频已删除: id={}", id);
     }
     
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public void deleteVideos(List<Long> ids) {
