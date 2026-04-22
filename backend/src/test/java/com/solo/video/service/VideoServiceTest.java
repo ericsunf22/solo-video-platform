@@ -80,6 +80,7 @@ class VideoServiceTest {
         assertThrows(VideoNotFoundException.class, () -> videoService.getVideoById(999L));
     }
     
+    @SuppressWarnings({ "null", "unchecked" })
     @Test
     void getAllVideos_Success() {
         Page<Video> videoPage = new PageImpl<>(Collections.singletonList(testVideo));
@@ -92,6 +93,7 @@ class VideoServiceTest {
         assertEquals(1, result.getTotalElements());
     }
     
+    @SuppressWarnings("null")
     @Test
     void toggleFavorite_FromFalseToTrue() {
         testVideo.setIsFavorite(false);
@@ -103,6 +105,7 @@ class VideoServiceTest {
         verify(videoRepository, times(1)).save(testVideo);
     }
     
+    @SuppressWarnings("null")
     @Test
     void toggleFavorite_FromTrueToFalse() {
         testVideo.setIsFavorite(true);

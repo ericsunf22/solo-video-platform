@@ -37,6 +37,7 @@ public class VideoServiceImpl implements VideoService {
     private final FileStorageService fileStorageService;
     private final VideoMapper videoMapper;
     
+    @SuppressWarnings("null")
     @Override
     public Page<VideoResponse> getAllVideos(String keyword, List<Long> tagIds, Boolean isFavorite,
                                              String sortBy, String sortOrder, Pageable pageable) {
@@ -75,6 +76,7 @@ public class VideoServiceImpl implements VideoService {
         return videoMapper.toResponse(video);
     }
     
+    @SuppressWarnings("null")
     @Override
     public Video getVideoEntityById(Long id) {
         return videoRepository.findById(id)
@@ -86,6 +88,7 @@ public class VideoServiceImpl implements VideoService {
         return videoRepository.findByFilePath(filePath);
     }
     
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public VideoResponse uploadVideo(MultipartFile file, String title, String description) {
@@ -141,6 +144,7 @@ public class VideoServiceImpl implements VideoService {
                 .build();
     }
     
+    @SuppressWarnings("null")
     @Override
     @Transactional
     public VideoResponse updateVideo(Long id, VideoUpdateRequest request) {
@@ -217,6 +221,7 @@ public class VideoServiceImpl implements VideoService {
         }
     }
     
+    @SuppressWarnings("null")
     @Override
     public boolean existsById(Long id) {
         return videoRepository.existsById(id);

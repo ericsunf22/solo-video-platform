@@ -29,6 +29,7 @@ public class PlayerServiceImpl implements PlayerService {
     @Override
     @Transactional
     public void saveProgress(PlayProgressRequest request) {
+        @SuppressWarnings("null")
         Video video = videoRepository.findById(request.getVideoId())
                 .orElseThrow(() -> new IllegalArgumentException("视频不存在: " + request.getVideoId()));
         
@@ -56,6 +57,7 @@ public class PlayerServiceImpl implements PlayerService {
                 .orElse(null);
         
         if (playHistory == null) {
+            @SuppressWarnings("null")
             Video video = videoRepository.findById(videoId)
                     .orElseThrow(() -> new IllegalArgumentException("视频不存在: " + videoId));
             
@@ -90,6 +92,7 @@ public class PlayerServiceImpl implements PlayerService {
                 .orElse(null);
         
         if (playHistory == null) {
+            @SuppressWarnings("null")
             Video video = videoRepository.findById(videoId)
                     .orElseThrow(() -> new IllegalArgumentException("视频不存在: " + videoId));
             
