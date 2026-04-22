@@ -4,7 +4,6 @@ import com.solo.video.dto.response.ScanResultResponse;
 import com.solo.video.entity.Video;
 import com.solo.video.repository.VideoRepository;
 import com.solo.video.service.FileScanService;
-import com.solo.video.service.FileStorageService;
 import com.solo.video.util.FileUtil;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FileScanServiceImpl implements FileScanService {
     
     private final VideoRepository videoRepository;
-    private final FileStorageService fileStorageService;
     
     private final AtomicInteger scanProgress = new AtomicInteger(0);
     private final AtomicBoolean isScanning = new AtomicBoolean(false);

@@ -117,7 +117,7 @@ export const videoService = {
     try {
       const response = await api.get<ApiResponse<PlayHistory>>(`/player/progress/${videoId}`)
       return response.data.data
-    } catch (error) {
+    } catch (_error) {
       return null
     }
   },

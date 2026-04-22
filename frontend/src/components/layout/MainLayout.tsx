@@ -37,8 +37,8 @@ export default function MainLayout() {
           setScanFolderPath(localPath)
         }
       }
-    } catch (error) {
-      console.error('Failed to load scan folder path:', error)
+    } catch (_err) {
+      console.error('Failed to load scan folder path:', _err)
       const localPath = localStorage.getItem('scanFolderPath')
       if (localPath) {
         setScanFolderPath(localPath)
@@ -50,8 +50,8 @@ export default function MainLayout() {
     localStorage.setItem('scanFolderPath', path)
     try {
       await videoService.setSetting('scanFolderPath', path, '扫描文件夹的默认路径')
-    } catch (error) {
-      console.error('Failed to save scan folder path:', error)
+    } catch (_err) {
+      console.error('Failed to save scan folder path:', _err)
     }
   }
 

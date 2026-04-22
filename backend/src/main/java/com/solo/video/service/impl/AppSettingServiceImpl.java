@@ -1,6 +1,5 @@
 package com.solo.video.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solo.video.entity.AppSetting;
 import com.solo.video.repository.AppSettingRepository;
