@@ -7,6 +7,7 @@ interface VideoState {
   loading: boolean
   pagination: PageResponse<Video> | null
   selectedVideoIds: number[]
+  needRefresh: boolean
 
   setVideos: (videos: Video[]) => void
   setCurrentVideo: (video: Video | null) => void
@@ -15,6 +16,8 @@ interface VideoState {
   setSelectedVideoIds: (ids: number[]) => void
   toggleVideoSelection: (id: number) => void
   clearSelection: () => void
+  triggerRefresh: () => void
+  markRefreshed: () => void
 }
 
 export const useVideoStore = create<VideoState>()((set) => ({
@@ -23,6 +26,7 @@ export const useVideoStore = create<VideoState>()((set) => ({
   loading: false,
   pagination: null,
   selectedVideoIds: [],
+  needRefresh: false,
 
   setVideos: (videos) => set({ videos }),
   setCurrentVideo: (video) => set({ currentVideo: video }),
@@ -36,4 +40,6 @@ export const useVideoStore = create<VideoState>()((set) => ({
         : [...state.selectedVideoIds, id],
     })),
   clearSelection: () => set({ selectedVideoIds: [] }),
+  triggerRefresh: () => set({ needRefresh: true }),
+  markRefreshed: () => set({ needRefresh: false }),
 }))

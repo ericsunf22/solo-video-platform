@@ -2,6 +2,7 @@ package com.solo.video.controller;
 
 import com.solo.video.dto.request.VideoUpdateRequest;
 import com.solo.video.dto.response.ApiResponse;
+import com.solo.video.dto.response.BatchUploadResult;
 import com.solo.video.dto.response.VideoResponse;
 import com.solo.video.service.VideoService;
 import jakarta.validation.Valid;
@@ -55,9 +56,9 @@ public class VideoController {
     }
     
     @PostMapping(value = "/upload/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<List<VideoResponse>>> uploadVideos(@RequestParam("files") List<MultipartFile> files) {
-        List<VideoResponse> videos = videoService.uploadVideos(files);
-        return ResponseEntity.ok(ApiResponse.success(videos));
+    public ResponseEntity<ApiResponse<BatchUploadResult>> uploadVideos(@RequestParam("files") List<MultipartFile> files) {
+        BatchUploadResult result = videoService.uploadVideos(files);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
     
     @PutMapping("/{id}")

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, Outlet } from 'react-router-dom'
 import { Home, Heart, Clock, Tag, Settings, Search, Menu, Upload, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useUIStore } from '@/store/uiStore'
+import { useUIStore, useVideoStore, useToastStore } from '@/store'
+import { videoService } from '@/services/videoService'
 
 const navItems = [
   { path: '/', label: '视频库', icon: Home },
@@ -16,13 +17,83 @@ const navItems = [
 export default function MainLayout() {
   const location = useLocation()
   const { sidebarOpen, setSidebarOpen, searchKeyword, setSearchKeyword, addRecentSearch } = useUIStore()
+  const { triggerRefresh } = useVideoStore()
+  const { warning, success, error } = useToastStore()
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [showScanDialog, setShowScanDialog] = useState(false)
+  const [scanFolderPath, setScanFolderPath] = useState('')
+  const [scanRecursive, setScanRecursive] = useState(true)
+  const [scanUpdateExisting, setScanUpdateExisting] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+
+  const loadScanFolderPath = async () => {
+    try {
+      const savedPath = await videoService.getSetting('scanFolderPath', '')
+      if (savedPath) {
+        setScanFolderPath(savedPath)
+      } else {
+        const localPath = localStorage.getItem('scanFolderPath')
+        if (localPath) {
+          setScanFolderPath(localPath)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load scan folder path:', error)
+      const localPath = localStorage.getItem('scanFolderPath')
+      if (localPath) {
+        setScanFolderPath(localPath)
+      }
+    }
+  }
+
+  const saveScanFolderPath = async (path: string) => {
+    localStorage.setItem('scanFolderPath', path)
+    try {
+      await videoService.setSetting('scanFolderPath', path, '扫描文件夹的默认路径')
+    } catch (error) {
+      console.error('Failed to save scan folder path:', error)
+    }
+  }
+
+  useEffect(() => {
+    loadScanFolderPath()
+  }, [])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (searchKeyword.trim()) {
       addRecentSearch(searchKeyword)
+    }
+  }
+
+  const handleScanFolder = async () => {
+    if (!scanFolderPath.trim()) {
+      warning('请输入文件夹路径')
+      return
+    }
+
+    setIsScanning(true)
+    try {
+      await saveScanFolderPath(scanFolderPath)
+
+      const result = await videoService.scanFolder({
+        folderPath: scanFolderPath,
+        recursive: scanRecursive,
+        updateExisting: scanUpdateExisting,
+      })
+
+      success(`扫描完成！新增视频: ${result.newVideos}, 更新视频: ${result.updatedVideos}, 跳过视频: ${result.skippedVideos}, 总视频数: ${result.totalVideos}`)
+      
+      if (result.newVideos > 0 || result.updatedVideos > 0) {
+        triggerRefresh()
+      }
+      
+      setShowScanDialog(false)
+    } catch (err) {
+      console.error('扫描失败:', err)
+      error('扫描失败: ' + (err instanceof Error ? err.message : '未知错误'))
+    } finally {
+      setIsScanning(false)
     }
   }
 
@@ -158,24 +229,47 @@ export default function MainLayout() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   文件夹路径
                 </label>
-                <Input placeholder="请输入文件夹路径" />
+                <Input
+                  placeholder="请输入文件夹路径"
+                  value={scanFolderPath}
+                  onChange={(e) => setScanFolderPath(e.target.value)}
+                  disabled={isScanning}
+                />
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" defaultChecked className="rounded" />
+                  <input
+                    type="checkbox"
+                    checked={scanRecursive}
+                    onChange={(e) => setScanRecursive(e.target.checked)}
+                    disabled={isScanning}
+                    className="rounded"
+                  />
                   <span className="text-sm">递归扫描子文件夹</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="rounded" />
+                  <input
+                    type="checkbox"
+                    checked={scanUpdateExisting}
+                    onChange={(e) => setScanUpdateExisting(e.target.checked)}
+                    disabled={isScanning}
+                    className="rounded"
+                  />
                   <span className="text-sm">更新已存在的视频</span>
                 </label>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => setShowScanDialog(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowScanDialog(false)}
+                disabled={isScanning}
+              >
                 取消
               </Button>
-              <Button onClick={() => setShowScanDialog(false)}>开始扫描</Button>
+              <Button onClick={handleScanFolder} disabled={isScanning}>
+                {isScanning ? '扫描中...' : '开始扫描'}
+              </Button>
             </div>
           </div>
         </div>

@@ -1,6 +1,8 @@
 package com.solo.video.service.impl;
 
 import com.solo.video.dto.request.VideoUpdateRequest;
+import com.solo.video.dto.response.BatchUploadResult;
+import com.solo.video.dto.response.UploadFailure;
 import com.solo.video.dto.response.VideoResponse;
 import com.solo.video.entity.Video;
 import com.solo.video.exception.VideoNotFoundException;
@@ -111,17 +113,32 @@ public class VideoServiceImpl implements VideoService {
     
     @Override
     @Transactional
-    public List<VideoResponse> uploadVideos(List<MultipartFile> files) {
-        List<VideoResponse> results = new ArrayList<>();
+    public BatchUploadResult uploadVideos(List<MultipartFile> files) {
+        List<VideoResponse> successes = new ArrayList<>();
+        List<UploadFailure> failures = new ArrayList<>();
+        
         for (MultipartFile file : files) {
+            String fileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown";
             try {
                 VideoResponse response = uploadVideo(file, null, null);
-                results.add(response);
+                successes.add(response);
+                log.info("批量上传成功: {}", fileName);
             } catch (Exception e) {
-                log.error("批量上传失败: {}", file.getOriginalFilename(), e);
+                log.error("批量上传失败: {}", fileName, e);
+                failures.add(UploadFailure.builder()
+                        .fileName(fileName)
+                        .errorMessage(e.getMessage())
+                        .build());
             }
         }
-        return results;
+        
+        return BatchUploadResult.builder()
+                .successes(successes)
+                .failures(failures)
+                .totalCount(files.size())
+                .successCount(successes.size())
+                .failureCount(failures.size())
+                .build();
     }
     
     @Override
