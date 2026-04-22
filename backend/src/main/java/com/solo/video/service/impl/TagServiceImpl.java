@@ -3,7 +3,6 @@ package com.solo.video.service.impl;
 import com.solo.video.dto.request.TagCreateRequest;
 import com.solo.video.dto.response.TagResponse;
 import com.solo.video.entity.Tag;
-import com.solo.video.entity.Video;
 import com.solo.video.exception.BusinessException;
 import com.solo.video.mapper.TagMapper;
 import com.solo.video.repository.TagRepository;

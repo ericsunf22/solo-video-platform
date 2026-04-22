@@ -17,8 +17,8 @@ export default function History() {
     try {
       const response = await videoService.getPlayHistory({ page: 1, size: 50 })
       setHistoryList(response.list || [])
-    } catch (error) {
-      console.error('Failed to load play history:', error)
+    } catch (_err) {
+      console.error('Failed to load play history:', _err)
       setHistoryList([])
     } finally {
       setLoading(false)
