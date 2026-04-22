@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solo.video.config.FileStorageConfig;
 import com.solo.video.dto.VideoMetadata;
-import com.solo.video.service.FileStorageService;
 import com.solo.video.service.VideoMetadataService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 public class VideoMetadataServiceImpl implements VideoMetadataService {
     
     private final FileStorageConfig fileStorageConfig;
-    private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
     
     private Path coverPath;
