@@ -8,6 +8,13 @@ import { videoService } from '@/services'
 import { formatDuration, formatFileSize, formatDate } from '@/utils/format'
 import type { Video, PageResponse } from '@/types'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+
+function getCoverUrl(coverPath?: string): string | null {
+  if (!coverPath) return null
+  return `${API_BASE_URL}/api/covers/${encodeURIComponent(coverPath)}`
+}
+
 function Play({ className }: { className?: string }) {
   return (
     <svg
@@ -32,73 +39,111 @@ interface VideoCardProps {
   onClick?: () => void
 }
 
-const VideoCard = ({ video, onClick }: VideoCardProps) => (
-  <Card 
-    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-    onClick={onClick}
-    role="button"
-    tabIndex={0}
-    aria-label={`播放视频: ${video.title}`}
-  >
-    <div className="relative aspect-video bg-gray-900">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <FileVideo className="w-16 h-16 text-gray-600" aria-hidden="true" />
+const VideoCard = ({ video, onClick }: VideoCardProps) => {
+  const coverUrl = getCoverUrl(video.coverPath)
+  
+  return (
+    <Card 
+      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`播放视频: ${video.title}`}
+    >
+      <div className="relative aspect-video bg-gray-900">
+        {coverUrl ? (
+          <img 
+            src={coverUrl} 
+            alt={video.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+              const parent = target.parentElement
+              if (parent) {
+                parent.querySelector('.fallback-icon')?.classList.remove('hidden')
+              }
+            }}
+          />
+        ) : null}
+        <div className={`absolute inset-0 flex items-center justify-center ${coverUrl ? 'hidden fallback-icon' : ''}`}>
+          <FileVideo className="w-16 h-16 text-gray-600" aria-hidden="true" />
+        </div>
+        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+          {formatDuration(video.duration)}
+        </div>
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <Play className="w-16 h-16 text-white" aria-hidden="true" />
+        </div>
       </div>
-      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-        {formatDuration(video.duration)}
-      </div>
-      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <Play className="w-16 h-16 text-white" aria-hidden="true" />
-      </div>
-    </div>
-    <CardContent className="p-4">
-      <h3 className="font-medium text-gray-900 truncate mb-1">{video.title}</h3>
-      <div className="flex items-center gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <Eye className="w-3 h-3" aria-hidden="true" />
-          {formatFileSize(video.fileSize)}
-        </span>
-        <span className="flex items-center gap-1">
-          <Clock className="w-3 h-3" aria-hidden="true" />
-          {formatDate(video.createdAt)}
-        </span>
-      </div>
-    </CardContent>
-  </Card>
-)
+      <CardContent className="p-4">
+        <h3 className="font-medium text-gray-900 truncate mb-1">{video.title}</h3>
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1">
+            <Eye className="w-3 h-3" aria-hidden="true" />
+            {formatFileSize(video.fileSize)}
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" aria-hidden="true" />
+            {formatDate(video.createdAt)}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 interface VideoRowProps {
   video: Video
   onClick?: () => void
 }
 
-const VideoRow = ({ video, onClick }: VideoRowProps) => (
-  <div 
-    className="flex items-center gap-4 p-4 bg-white rounded-lg border hover:border-blue-300 transition-colors cursor-pointer"
-    onClick={onClick}
-    role="button"
-    tabIndex={0}
-    aria-label={`播放视频: ${video.title}`}
-  >
-    <div className="relative w-40 h-24 bg-gray-900 rounded overflow-hidden flex-shrink-0">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <FileVideo className="w-8 h-8 text-gray-600" aria-hidden="true" />
+const VideoRow = ({ video, onClick }: VideoRowProps) => {
+  const coverUrl = getCoverUrl(video.coverPath)
+  
+  return (
+    <div 
+      className="flex items-center gap-4 p-4 bg-white rounded-lg border hover:border-blue-300 transition-colors cursor-pointer"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`播放视频: ${video.title}`}
+    >
+      <div className="relative w-40 h-24 bg-gray-900 rounded overflow-hidden flex-shrink-0">
+        {coverUrl ? (
+          <img 
+            src={coverUrl} 
+            alt={video.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+              const parent = target.parentElement
+              if (parent) {
+                parent.querySelector('.fallback-icon')?.classList.remove('hidden')
+              }
+            }}
+          />
+        ) : null}
+        <div className={`absolute inset-0 flex items-center justify-center ${coverUrl ? 'hidden fallback-icon' : ''}`}>
+          <FileVideo className="w-8 h-8 text-gray-600" aria-hidden="true" />
+        </div>
+        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+          {formatDuration(video.duration)}
+        </div>
       </div>
-      <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
-        {formatDuration(video.duration)}
+      <div className="flex-1 min-w-0">
+        <h3 className="font-medium text-gray-900 truncate">{video.title}</h3>
+        <p className="text-sm text-gray-500 truncate mt-1">{video.description}</p>
+        <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+          <span>{formatFileSize(video.fileSize)}</span>
+          <span>{video.resolution}</span>
+          <span>{formatDate(video.createdAt)}</span>
+        </div>
       </div>
     </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="font-medium text-gray-900 truncate">{video.title}</h3>
-      <p className="text-sm text-gray-500 truncate mt-1">{video.description}</p>
-      <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-        <span>{formatFileSize(video.fileSize)}</span>
-        <span>{video.resolution}</span>
-        <span>{formatDate(video.createdAt)}</span>
-      </div>
-    </div>
-  </div>
-)
+  )
+}
 
 interface PaginationProps {
   pagination: PageResponse<Video>

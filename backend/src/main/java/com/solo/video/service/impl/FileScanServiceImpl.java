@@ -1,9 +1,11 @@
 package com.solo.video.service.impl;
 
+import com.solo.video.dto.VideoMetadata;
 import com.solo.video.dto.response.ScanResultResponse;
 import com.solo.video.entity.Video;
 import com.solo.video.repository.VideoRepository;
 import com.solo.video.service.FileScanService;
+import com.solo.video.service.VideoMetadataService;
 import com.solo.video.util.FileUtil;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class FileScanServiceImpl implements FileScanService {
     
     private final VideoRepository videoRepository;
+    private final VideoMetadataService videoMetadataService;
     
     private final AtomicInteger scanProgress = new AtomicInteger(0);
     private final AtomicBoolean isScanning = new AtomicBoolean(false);
@@ -137,6 +140,9 @@ public class FileScanServiceImpl implements FileScanService {
                     Video video = existingVideo.get();
                     try {
                         video.setFileSize(Files.size(path));
+                        
+                        extractAndSetMetadata(video, path);
+                        
                         videosToSave.add(video);
                         updatedCount.incrementAndGet();
                         log.debug("已更新视频: {}", absolutePath);
@@ -161,6 +167,8 @@ public class FileScanServiceImpl implements FileScanService {
                     log.warn("无法读取文件大小: {}", absolutePath, e);
                 }
                 
+                extractAndSetMetadata(video, path);
+                
                 videosToSave.add(video);
                 newCount.incrementAndGet();
                 log.debug("发现新视频: {}", absolutePath);
@@ -168,6 +176,38 @@ public class FileScanServiceImpl implements FileScanService {
         } catch (Exception e) {
             log.error("处理视频文件失败: {}", absolutePath, e);
             skippedCount.incrementAndGet();
+        }
+    }
+    
+    private void extractAndSetMetadata(Video video, Path path) {
+        if (!videoMetadataService.isFFmpegAvailable()) {
+            log.debug("FFmpeg 不可用，跳过元数据提取: {}", path);
+            return;
+        }
+        
+        try {
+            VideoMetadata metadata = videoMetadataService.extractMetadata(path);
+            
+            if (metadata.isSuccess()) {
+                if (metadata.getDuration() != null) {
+                    video.setDuration(metadata.getDuration());
+                    log.debug("提取到视频时长: {}秒", metadata.getDuration());
+                }
+                
+                if (metadata.getResolution() != null) {
+                    video.setResolution(metadata.getResolution());
+                    log.debug("提取到视频分辨率: {}", metadata.getResolution());
+                }
+                
+                if (metadata.getCoverPath() != null) {
+                    video.setCoverPath(metadata.getCoverPath());
+                    log.debug("提取到视频封面: {}", metadata.getCoverPath());
+                }
+            } else {
+                log.warn("元数据提取失败: {}", metadata.getErrorMessage());
+            }
+        } catch (Exception e) {
+            log.warn("提取元数据时出错: {}", path, e);
         }
     }
 }
