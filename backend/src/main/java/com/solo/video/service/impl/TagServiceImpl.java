@@ -3,6 +3,7 @@ package com.solo.video.service.impl;
 import com.solo.video.dto.request.TagCreateRequest;
 import com.solo.video.dto.response.TagResponse;
 import com.solo.video.entity.Tag;
+import com.solo.video.entity.VideoTag;
 import com.solo.video.exception.BusinessException;
 import com.solo.video.mapper.TagMapper;
 import com.solo.video.repository.TagRepository;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
