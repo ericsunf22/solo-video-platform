@@ -10,7 +10,9 @@ public interface BackupService {
     
     BackupResult createBackup();
     
-    boolean restoreBackup(String backupId);
+    RestoreResult restoreBackup(String backupId);
+    
+    RestoreValidationResult validateBackup(String backupId);
     
     boolean deleteBackup(String backupId);
     
@@ -22,6 +24,15 @@ public interface BackupService {
     
     boolean isBackupRunning();
     
+    DatabaseType getDatabaseType();
+    
+    enum DatabaseType {
+        H2_FILE,
+        MYSQL,
+        POSTGRESQL,
+        UNKNOWN
+    }
+    
     record BackupInfo(
         String id,
         String name,
@@ -29,7 +40,10 @@ public interface BackupService {
         long databaseSize,
         long coversSize,
         long totalSize,
-        String description
+        String description,
+        DatabaseType databaseType,
+        String appVersion,
+        String checksum
     ) {}
     
     record BackupResult(
@@ -37,5 +51,18 @@ public interface BackupService {
         String backupId,
         String message,
         BackupInfo backupInfo
+    ) {}
+    
+    record RestoreValidationResult(
+        boolean valid,
+        List<String> warnings,
+        List<String> errors,
+        BackupInfo backupInfo
+    ) {}
+    
+    record RestoreResult(
+        boolean success,
+        String message,
+        boolean requiresRestart
     ) {}
 }

@@ -10,7 +10,10 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -30,21 +33,38 @@ public class BackupServiceImpl implements BackupService {
     @Value("${spring.datasource.url:jdbc:h2:file:./data/video_db}")
     private String datasourceUrl;
     
+    @Value("${spring.datasource.username:}")
+    private String datasourceUsername;
+    
+    @Value("${spring.datasource.password:}")
+    private String datasourcePassword;
+    
     @Value("${app.backup.path:./storage/backups}")
     private String backupBasePath;
     
     @Value("${app.backup.keep-days:7}")
     private int defaultKeepDays;
     
+    @Value("${app.backup.mysqldump-path:mysqldump}")
+    private String mysqldumpPath;
+    
+    @Value("${app.backup.pgdump-path:pg_dump}")
+    private String pgdumpPath;
+    
+    @Value("${info.app.version:1.0.0}")
+    private String appVersion;
+    
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private final AtomicBoolean backupRunning = new AtomicBoolean(false);
     private Path backupPath;
     private Path databasePath;
     private Path coversPath;
+    private DatabaseType databaseType;
     
     @PostConstruct
     public void init() {
         this.backupPath = Paths.get(backupBasePath).toAbsolutePath().normalize();
+        this.databaseType = detectDatabaseType(datasourceUrl);
         this.databasePath = extractDatabasePath(datasourceUrl);
         this.coversPath = Paths.get(coverStoragePath).toAbsolutePath().normalize();
         
@@ -59,20 +79,53 @@ public class BackupServiceImpl implements BackupService {
         
         log.info("备份服务初始化完成");
         log.info("  备份目录: {}", backupPath);
+        log.info("  数据库类型: {}", databaseType);
         log.info("  数据库路径: {}", databasePath);
         log.info("  封面路径: {}", coversPath);
+        log.info("  应用版本: {}", appVersion);
+    }
+    
+    @Override
+    public DatabaseType getDatabaseType() {
+        return databaseType;
+    }
+    
+    private DatabaseType detectDatabaseType(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return DatabaseType.UNKNOWN;
+        }
+        
+        String lowerUrl = jdbcUrl.toLowerCase();
+        
+        if (lowerUrl.startsWith("jdbc:h2:file:")) {
+            return DatabaseType.H2_FILE;
+        } else if (lowerUrl.startsWith("jdbc:h2:")) {
+            return DatabaseType.H2_FILE;
+        } else if (lowerUrl.startsWith("jdbc:mysql:")) {
+            return DatabaseType.MYSQL;
+        } else if (lowerUrl.startsWith("jdbc:mariadb:")) {
+            return DatabaseType.MYSQL;
+        } else if (lowerUrl.startsWith("jdbc:postgresql:")) {
+            return DatabaseType.POSTGRESQL;
+        }
+        
+        log.warn("未知的数据库类型: {}", jdbcUrl);
+        return DatabaseType.UNKNOWN;
     }
     
     private Path extractDatabasePath(String jdbcUrl) {
-        String prefix = "jdbc:h2:file:";
-        if (jdbcUrl.startsWith(prefix)) {
-            String path = jdbcUrl.substring(prefix.length());
-            int semicolonIndex = path.indexOf(';');
-            if (semicolonIndex > 0) {
-                path = path.substring(0, semicolonIndex);
+        if (databaseType == DatabaseType.H2_FILE) {
+            String prefix = "jdbc:h2:file:";
+            if (jdbcUrl.startsWith(prefix)) {
+                String path = jdbcUrl.substring(prefix.length());
+                int semicolonIndex = path.indexOf(';');
+                if (semicolonIndex > 0) {
+                    path = path.substring(0, semicolonIndex);
+                }
+                return Paths.get(path).toAbsolutePath().normalize().getParent();
             }
-            return Paths.get(path).toAbsolutePath().normalize().getParent();
         }
+        
         return Paths.get("./data").toAbsolutePath().normalize();
     }
     
@@ -94,9 +147,24 @@ public class BackupServiceImpl implements BackupService {
             Files.createDirectories(backupDir);
             
             log.info("开始创建备份: {} (ID: {})", actualName, backupId);
+            log.info("数据库类型: {}", databaseType);
             
-            long databaseSize = backupDatabase(backupDir);
+            long databaseSize;
+            
+            if (databaseType == DatabaseType.H2_FILE) {
+                databaseSize = backupH2Database(backupDir);
+            } else if (databaseType == DatabaseType.MYSQL) {
+                databaseSize = backupMySQLDatabase(backupDir);
+            } else if (databaseType == DatabaseType.POSTGRESQL) {
+                databaseSize = backupPostgreSQLDatabase(backupDir);
+            } else {
+                log.warn("不支持的数据库类型: {}，跳过数据库备份", databaseType);
+                databaseSize = 0;
+            }
+            
             long coversSize = backupCovers(backupDir);
+            
+            String checksum = calculateBackupChecksum(backupDir);
             
             BackupInfo backupInfo = new BackupInfo(
                 backupId,
@@ -105,7 +173,10 @@ public class BackupServiceImpl implements BackupService {
                 databaseSize,
                 coversSize,
                 databaseSize + coversSize,
-                "手动备份"
+                "手动备份",
+                databaseType,
+                appVersion,
+                checksum
             );
             
             saveBackupInfo(backupDir, backupInfo);
@@ -130,7 +201,7 @@ public class BackupServiceImpl implements BackupService {
         return createBackup(null);
     }
     
-    private long backupDatabase(Path backupDir) throws IOException {
+    private long backupH2Database(Path backupDir) throws IOException {
         Path dbBackupDir = backupDir.resolve("database");
         Files.createDirectories(dbBackupDir);
         
@@ -150,6 +221,130 @@ public class BackupServiceImpl implements BackupService {
         }
         
         return totalSize;
+    }
+    
+    private long backupMySQLDatabase(Path backupDir) throws IOException {
+        Path dbBackupDir = backupDir.resolve("database");
+        Files.createDirectories(dbBackupDir);
+        
+        Path dumpFile = dbBackupDir.resolve("dump.sql");
+        
+        log.info("尝试使用 mysqldump 备份 MySQL 数据库");
+        
+        String databaseName = extractDatabaseNameFromUrl(datasourceUrl);
+        
+        List<String> cmd = new ArrayList<>();
+        cmd.add(mysqldumpPath);
+        cmd.add("--user=" + datasourceUsername);
+        if (datasourcePassword != null && !datasourcePassword.isEmpty()) {
+            cmd.add("--password=" + datasourcePassword);
+        }
+        cmd.add("--databases");
+        cmd.add(databaseName);
+        
+        log.debug("执行命令: {}", String.join(" ", cmd));
+        
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectOutput(dumpFile.toFile());
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            boolean success = process.waitFor(300, java.util.concurrent.TimeUnit.SECONDS);
+            
+            if (success && process.exitValue() == 0) {
+                long size = Files.size(dumpFile);
+                log.info("MySQL 数据库备份成功: {} ({} bytes)", dumpFile, size);
+                return size;
+            } else {
+                log.warn("mysqldump 执行失败，退出码: {}", process.exitValue());
+                log.warn("MySQL 备份失败，仅备份元数据");
+                
+                Path infoFile = dbBackupDir.resolve("backup-info.json");
+                Map<String, Object> info = new HashMap<>();
+                info.put("databaseType", "MYSQL");
+                info.put("url", datasourceUrl);
+                info.put("username", datasourceUsername);
+                info.put("error", "mysqldump 执行失败，未备份数据");
+                objectMapper.writerWithDefaultPrettyPrinter().writeValue(infoFile.toFile(), info);
+                
+                return 0;
+            }
+        } catch (Exception e) {
+            log.error("MySQL 数据库备份失败: {}", e.getMessage());
+            return 0;
+        }
+    }
+    
+    private long backupPostgreSQLDatabase(Path backupDir) throws IOException {
+        Path dbBackupDir = backupDir.resolve("database");
+        Files.createDirectories(dbBackupDir);
+        
+        Path dumpFile = dbBackupDir.resolve("dump.sql");
+        
+        log.info("尝试使用 pg_dump 备份 PostgreSQL 数据库");
+        
+        String databaseName = extractDatabaseNameFromUrl(datasourceUrl);
+        
+        List<String> cmd = new ArrayList<>();
+        cmd.add(pgdumpPath);
+        cmd.add("--username=" + datasourceUsername);
+        cmd.add("--dbname=" + databaseName);
+        cmd.add("--file=" + dumpFile.toAbsolutePath());
+        
+        Map<String, String> env = new HashMap<>();
+        if (datasourcePassword != null && !datasourcePassword.isEmpty()) {
+            env.put("PGPASSWORD", datasourcePassword);
+        }
+        
+        log.debug("执行命令: {}", String.join(" ", cmd));
+        
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.environment().putAll(env);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            boolean success = process.waitFor(300, java.util.concurrent.TimeUnit.SECONDS);
+            
+            if (success && process.exitValue() == 0 && Files.exists(dumpFile)) {
+                long size = Files.size(dumpFile);
+                log.info("PostgreSQL 数据库备份成功: {} ({} bytes)", dumpFile, size);
+                return size;
+            } else {
+                log.warn("pg_dump 执行失败，退出码: {}", process.exitValue());
+                return 0;
+            }
+        } catch (Exception e) {
+            log.error("PostgreSQL 数据库备份失败: {}", e.getMessage());
+            return 0;
+        }
+    }
+    
+    private String extractDatabaseNameFromUrl(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return "";
+        }
+        
+        try {
+            int lastSlashIndex = jdbcUrl.lastIndexOf('/');
+            if (lastSlashIndex > 0) {
+                String path = jdbcUrl.substring(lastSlashIndex + 1);
+                int queryIndex = path.indexOf('?');
+                if (queryIndex > 0) {
+                    path = path.substring(0, queryIndex);
+                }
+                int semicolonIndex = path.indexOf(';');
+                if (semicolonIndex > 0) {
+                    path = path.substring(0, semicolonIndex);
+                }
+                return path;
+            }
+        } catch (Exception e) {
+            log.warn("解析数据库名称失败: {}", jdbcUrl);
+        }
+        
+        return "video_db";
     }
     
     private long backupCovers(Path backupDir) throws IOException {
@@ -178,6 +373,62 @@ public class BackupServiceImpl implements BackupService {
         return totalSize;
     }
     
+    private String calculateBackupChecksum(Path backupDir) {
+        try {
+            StringBuilder combined = new StringBuilder();
+            
+            try (Stream<Path> paths = Files.walk(backupDir)) {
+                Iterator<Path> iterator = paths.iterator();
+                while (iterator.hasNext()) {
+                    Path path = iterator.next();
+                    if (Files.isRegularFile(path) && !path.getFileName().toString().equals("backup-info.json")) {
+                        String fileChecksum = calculateFileChecksum(path);
+                        combined.append(fileChecksum);
+                    }
+                }
+            }
+            
+            return calculateStringChecksum(combined.toString());
+        } catch (Exception e) {
+            log.warn("计算备份校验和失败: {}", e.getMessage());
+            return null;
+        }
+    }
+    
+    private String calculateFileChecksum(Path path) {
+        try (InputStream is = Files.newInputStream(path)) {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = is.read(buffer)) > 0) {
+                md.update(buffer, 0, read);
+            }
+            byte[] hash = md.digest();
+            return bytesToHex(hash);
+        } catch (Exception e) {
+            log.debug("计算文件校验和失败: {}", path);
+            return "";
+        }
+    }
+    
+    private String calculateStringChecksum(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes());
+            return bytesToHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            return "";
+        }
+    }
+    
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+    
     private void saveBackupInfo(Path backupDir, BackupInfo info) throws IOException {
         Path infoFile = backupDir.resolve("backup-info.json");
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(infoFile.toFile(), info);
@@ -196,44 +447,123 @@ public class BackupServiceImpl implements BackupService {
     }
     
     @Override
-    public boolean restoreBackup(String backupId) {
-        if (backupRunning.get()) {
-            log.warn("备份任务正在进行中，无法恢复备份");
-            return false;
-        }
+    public RestoreValidationResult validateBackup(String backupId) {
+        List<String> warnings = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
         
         Path backupDir = backupPath.resolve(backupId);
         
         if (!Files.exists(backupDir)) {
-            log.error("备份不存在: {}", backupId);
-            return false;
+            errors.add("备份不存在: " + backupId);
+            return new RestoreValidationResult(false, warnings, errors, null);
+        }
+        
+        BackupInfo backupInfo = loadBackupInfo(backupDir);
+        
+        if (backupInfo == null) {
+            errors.add("无法加载备份信息");
+            return new RestoreValidationResult(false, warnings, errors, null);
+        }
+        
+        if (backupInfo.databaseType() != databaseType) {
+            warnings.add("数据库类型不匹配: 备份=" + backupInfo.databaseType() + ", 当前=" + databaseType);
+        }
+        
+        if (backupInfo.appVersion() != null && !backupInfo.appVersion().equals(appVersion)) {
+            warnings.add("应用版本不匹配: 备份=" + backupInfo.appVersion() + ", 当前=" + appVersion);
+        }
+        
+        Path dbBackupDir = backupDir.resolve("database");
+        if (!Files.exists(dbBackupDir)) {
+            errors.add("备份中没有数据库文件");
+        } else {
+            try (Stream<Path> paths = Files.list(dbBackupDir)) {
+                if (paths.findAny().isEmpty()) {
+                    errors.add("数据库备份目录为空");
+                }
+            } catch (IOException e) {
+                errors.add("无法读取数据库备份目录: " + e.getMessage());
+            }
+        }
+        
+        if (backupInfo.checksum() != null) {
+            String currentChecksum = calculateBackupChecksum(backupDir);
+            if (currentChecksum != null && !currentChecksum.equals(backupInfo.checksum())) {
+                warnings.add("备份校验和不匹配，备份文件可能已被修改");
+            }
+        }
+        
+        if (databaseType != DatabaseType.H2_FILE && databaseType != DatabaseType.UNKNOWN) {
+            warnings.add("当前数据库类型为 " + databaseType + "，自动恢复可能需要手动导入 SQL 文件");
+        }
+        
+        boolean valid = errors.isEmpty();
+        
+        return new RestoreValidationResult(valid, warnings, errors, backupInfo);
+    }
+    
+    @Override
+    public RestoreResult restoreBackup(String backupId) {
+        if (backupRunning.get()) {
+            return new RestoreResult(false, "备份任务正在进行中，无法恢复备份", false);
+        }
+        
+        RestoreValidationResult validation = validateBackup(backupId);
+        
+        if (!validation.valid()) {
+            return new RestoreResult(false, "备份验证失败: " + String.join(", ", validation.errors()), false);
+        }
+        
+        if (!validation.warnings().isEmpty()) {
+            log.warn("备份恢复存在警告: {}", validation.warnings());
         }
         
         backupRunning.set(true);
+        Path backupDir = backupPath.resolve(backupId);
         
         try {
             log.info("开始恢复备份: {}", backupId);
             
-            restoreDatabase(backupDir);
+            boolean requiresRestart = false;
+            
+            if (databaseType == DatabaseType.H2_FILE) {
+                requiresRestart = restoreH2Database(backupDir);
+            } else if (databaseType == DatabaseType.MYSQL) {
+                restoreMySQLDatabase(backupDir);
+            } else if (databaseType == DatabaseType.POSTGRESQL) {
+                restorePostgreSQLDatabase(backupDir);
+            } else {
+                log.warn("不支持的数据库类型: {}，跳过数据库恢复", databaseType);
+            }
+            
             restoreCovers(backupDir);
             
+            if (requiresRestart) {
+                log.info("H2 数据库已恢复，建议重启应用");
+            }
+            
             log.info("备份恢复成功: {}", backupId);
-            return true;
+            
+            return new RestoreResult(
+                true, 
+                "备份恢复成功" + (requiresRestart ? "，建议重启应用" : ""), 
+                requiresRestart
+            );
             
         } catch (Exception e) {
             log.error("恢复备份失败: {}", backupId, e);
-            return false;
+            return new RestoreResult(false, "恢复备份失败: " + e.getMessage(), false);
         } finally {
             backupRunning.set(false);
         }
     }
     
-    private void restoreDatabase(Path backupDir) throws IOException {
+    private boolean restoreH2Database(Path backupDir) throws IOException {
         Path dbBackupDir = backupDir.resolve("database");
         
         if (!Files.exists(dbBackupDir)) {
             log.warn("备份中没有数据库文件: {}", backupDir);
-            return;
+            return false;
         }
         
         if (databasePath != null) {
@@ -250,7 +580,49 @@ public class BackupServiceImpl implements BackupService {
                     log.debug("已恢复数据库文件: {}", source.getFileName());
                 }
             }
+            
+            return true;
         }
+        
+        return false;
+    }
+    
+    private void restoreMySQLDatabase(Path backupDir) throws IOException {
+        Path dbBackupDir = backupDir.resolve("database");
+        Path dumpFile = dbBackupDir.resolve("dump.sql");
+        
+        if (!Files.exists(dumpFile)) {
+            log.warn("备份中没有 MySQL 转储文件");
+            return;
+        }
+        
+        log.info("MySQL 数据库恢复需要手动执行:");
+        log.info("  转储文件位置: {}", dumpFile.toAbsolutePath());
+        log.info("  执行命令: mysql -u{} -p {} < {}", 
+            datasourceUsername, 
+            extractDatabaseNameFromUrl(datasourceUrl),
+            dumpFile.toAbsolutePath());
+        
+        throw new IOException("MySQL 数据库恢复需要手动执行 SQL 文件: " + dumpFile.toAbsolutePath());
+    }
+    
+    private void restorePostgreSQLDatabase(Path backupDir) throws IOException {
+        Path dbBackupDir = backupDir.resolve("database");
+        Path dumpFile = dbBackupDir.resolve("dump.sql");
+        
+        if (!Files.exists(dumpFile)) {
+            log.warn("备份中没有 PostgreSQL 转储文件");
+            return;
+        }
+        
+        log.info("PostgreSQL 数据库恢复需要手动执行:");
+        log.info("  转储文件位置: {}", dumpFile.toAbsolutePath());
+        log.info("  执行命令: psql -U {} -d {} -f {}", 
+            datasourceUsername, 
+            extractDatabaseNameFromUrl(datasourceUrl),
+            dumpFile.toAbsolutePath());
+        
+        throw new IOException("PostgreSQL 数据库恢复需要手动执行 SQL 文件: " + dumpFile.toAbsolutePath());
     }
     
     private void restoreCovers(Path backupDir) throws IOException {

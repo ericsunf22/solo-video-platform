@@ -51,19 +51,28 @@ public class BackupController {
             .orElse(ApiResponse.error("备份不存在: " + backupId));
     }
     
+    @GetMapping("/validate/{backupId}")
+    public ApiResponse<BackupService.RestoreValidationResult> validateBackup(@PathVariable String backupId) {
+        log.info("验证备份: {}", backupId);
+        BackupService.RestoreValidationResult result = backupService.validateBackup(backupId);
+        return ApiResponse.success(result);
+    }
+    
     @PostMapping("/{backupId}/restore")
     public ApiResponse<Map<String, Object>> restoreBackup(@PathVariable String backupId) {
         log.info("恢复备份: {}", backupId);
         
-        boolean success = backupService.restoreBackup(backupId);
+        BackupService.RestoreResult result = backupService.restoreBackup(backupId);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("success", success);
+        response.put("success", result.success());
         response.put("backupId", backupId);
+        response.put("message", result.message());
+        response.put("requiresRestart", result.requiresRestart());
         
-        return success 
-            ? ApiResponse.success(response, "备份恢复成功，建议重启应用")
-            : ApiResponse.error("备份恢复失败");
+        return result.success() 
+            ? ApiResponse.success(response, result.message())
+            : ApiResponse.error(result.message());
     }
     
     @DeleteMapping("/{backupId}")
@@ -99,6 +108,18 @@ public class BackupController {
     public ApiResponse<Map<String, Object>> getBackupStatus() {
         Map<String, Object> response = new HashMap<>();
         response.put("isRunning", backupService.isBackupRunning());
+        response.put("databaseType", backupService.getDatabaseType().name());
+        return ApiResponse.success(response);
+    }
+    
+    @GetMapping("/database-type")
+    public ApiResponse<Map<String, Object>> getDatabaseType() {
+        BackupService.DatabaseType type = backupService.getDatabaseType();
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", type.name());
+        response.put("isFileBased", type == BackupService.DatabaseType.H2_FILE);
+        response.put("isServerBased", type == BackupService.DatabaseType.MYSQL || 
+                                      type == BackupService.DatabaseType.POSTGRESQL);
         return ApiResponse.success(response);
     }
 }
