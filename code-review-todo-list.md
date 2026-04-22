@@ -59,7 +59,43 @@
 
 ---
 
-### 3. H2控制台安全问题
+### 3. 事务注解导入错误
+
+**问题描述**：
+- 所有4个服务实现类都错误地导入了 `jakarta.transaction.Transactional` 而非 `org.springframework.transaction.annotation.Transactional`
+- 这是一个严重问题，可能导致事务不生效
+
+**涉及文件**：
+- `src/main/java/com/solo/video/service/impl/PlayerServiceImpl.java:11`
+- `src/main/java/com/solo/video/service/impl/TagServiceImpl.java:13`
+- `src/main/java/com/solo/video/service/impl/VideoServiceImpl.java:15`
+
+**修复建议**：
+1. 将所有 `import jakarta.transaction.Transactional;` 替换为 `import org.springframework.transaction.annotation.Transactional;`
+2. 确保使用的是Spring框架的事务管理
+
+**状态**：待修复
+
+---
+
+### 4. 排序逻辑错误
+
+**问题描述**：
+- `TagServiceImpl.buildSort` 方法中，当 `sortBy` 为 "videocount" 时，实际排序属性仍然是 "name"
+- 这是一个明显的bug，会导致按视频数量排序功能失效
+
+**涉及文件**：
+- `src/main/java/com/solo/video/service/impl/TagServiceImpl.java:145-154`
+
+**修复建议**：
+1. 修复 `buildSort` 方法中的排序逻辑，确保 "videocount" 对应正确的属性名
+2. 确保属性名与实体类中的字段名一致
+
+**状态**：待修复
+
+---
+
+### 5. H2控制台安全问题
 
 **问题描述**：
 - `application.yml` 中启用了H2控制台，且没有设置密码
@@ -78,27 +114,109 @@
 
 ## 中优先级问题（应该尽快修复）
 
-### 4. 批量操作效率低
+### 6. 批量操作效率低
 
 **问题描述**：
 - `deleteVideos`、`addToFavorites`、`removeFromFavorites` 方法都是循环处理
 - 没有使用JPA的批量操作，效率低下
+- `addTagsToVideo` 方法中，循环内多次调用 `existsById` 和 `save`，导致N+1查询问题
 
 **涉及文件**：
 - `src/main/java/com/solo/video/service/impl/VideoServiceImpl.java:152-158` (deleteVideos)
 - `src/main/java/com/solo/video/service/impl/VideoServiceImpl.java:180-189` (addToFavorites)
 - `src/main/java/com/solo/video/service/impl/VideoServiceImpl.java:192-201` (removeFromFavorites)
+- `src/main/java/com/solo/video/service/impl/TagServiceImpl.java:110-128` (addTagsToVideo)
 
 **修复建议**：
-1. 使用JPA的批量操作方法（如 `deleteAllById`）
+1. 使用JPA的批量操作方法（如 `deleteAllById`、`saveAll`）
 2. 或者使用JPQL批量更新/删除
 3. 确保整个批量操作在一个事务中
+4. 优化 `addTagsToVideo` 方法，减少数据库交互次数
 
 **状态**：待修复
 
 ---
 
-### 5. DTO未使用Java 21 Record
+### 7. 并发更新问题
+
+**问题描述**：
+- `PlayerServiceImpl.incrementPlayCount` 方法中，先读取再更新的操作不是原子的
+- 在高并发场景下可能导致计数不准确
+
+**涉及文件**：
+- `src/main/java/com/solo/video/service/impl/PlayerServiceImpl.java:88-106`
+
+**修复建议**：
+1. 使用数据库层面的原子更新（如 `@Modifying` + JPQL）
+2. 或者使用乐观锁机制
+3. 考虑使用Redis等缓存来处理高并发计数
+
+**状态**：待修复
+
+---
+
+### 8. 测试质量问题
+
+**问题描述**：
+- 测试方法命名使用了下划线分隔（如 `testGetVideoById_Success`），不符合Java命名规范
+- 异常类型测试不准确：`testGetVideoById_NotFound` 测试抛出 `RuntimeException`，但实际抛出的是 `VideoNotFoundException`
+- 测试覆盖率不完整：缺少对 `uploadVideo`、`updateVideo`、`deleteVideo` 等关键方法的测试
+- 断言不够完整：部分测试方法的断言不够全面
+
+**涉及文件**：
+- `src/test/java/com/solo/video/service/VideoServiceTest.java`
+
+**修复建议**：
+1. 修复测试方法命名，使用驼峰式命名
+2. 修复异常类型测试，使用具体的异常类型
+3. 增加测试覆盖率，特别是关键业务方法
+4. 完善测试断言，确保测试覆盖更多场景
+
+**状态**：待修复
+
+---
+
+### 9. 安全隐患
+
+**问题描述**：
+- 文件存储服务缺少文件类型验证，仅依赖文件扩展名
+- 路径遍历防护不够全面
+- 缺少文件大小限制
+
+**涉及文件**：
+- `src/main/java/com/solo/video/service/impl/FileStorageServiceImpl.java`
+
+**修复建议**：
+1. 增加文件内容类型检查（如使用Tika库检测真实文件类型）
+2. 加强路径遍历防护
+3. 添加文件大小限制配置
+4. 考虑限制可上传的文件类型白名单
+
+**状态**：待修复
+
+---
+
+### 10. 代码重复与异常类型不统一
+
+**问题描述**：
+- `PlayerServiceImpl` 中 `getProgress` 和 `incrementPlayCount` 方法有相似的代码逻辑
+- `VideoServiceImpl` 中 `addToFavorites` 和 `removeFromFavorites` 方法有相似的代码结构
+- 部分方法使用 `IllegalArgumentException`，与其他地方使用的自定义异常不一致
+
+**涉及文件**：
+- `src/main/java/com/solo/video/service/impl/PlayerServiceImpl.java`
+- `src/main/java/com/solo/video/service/impl/VideoServiceImpl.java`
+
+**修复建议**：
+1. 提取重复代码为公共方法
+2. 统一异常类型，优先使用自定义业务异常
+3. 考虑使用模板方法模式处理相似的业务流程
+
+**状态**：待修复
+
+---
+
+### 11. DTO未使用Java 21 Record
 
 **问题描述**：
 - 所有DTO类都使用了Lombok的`@Data`注解
@@ -310,19 +428,25 @@
 |--------|----------|----------|------|----------|------|
 | 高 | 1 | 异常处理不当 | 已修复 | 2026-04-22 | GlobalExceptionHandler 日志已添加，uploadVideos 返回详细结果 |
 | 高 | 2 | 缺少认证授权机制 | 待修复 | | |
-| 高 | 3 | H2控制台安全问题 | 待修复 | | |
-| 中 | 4 | 批量操作效率低 | 待修复 | | |
-| 中 | 5 | DTO未使用Java 21 Record | 待修复 | | |
-| 中 | 6 | 配置类使用不当 | 待修复 | | |
-| 中 | 7 | 文件上传安全增强 | 待修复 | | |
-| 中 | 8 | 缺少参数验证异常处理 | 待修复 | | |
-| 低 | 9 | 代码风格统一 | 待修复 | | |
-| 低 | 10 | 添加必要的注释 | 待修复 | | |
-| 低 | 11 | 提取魔法值为常量 | 待修复 | | |
-| 低 | 12 | 使用Actuator监控端点 | 待修复 | | |
-| 低 | 13 | 未使用Problem Details | 待评估 | | |
-| 低 | 14 | 日志增强 | 待修复 | | |
-| 低 | 15 | 输入验证增强 | 待修复 | | |
+| 高 | 3 | 事务注解导入错误 | 待修复 | 2026-04-22 | PlayerServiceImpl、TagServiceImpl、VideoServiceImpl 中导入错误 |
+| 高 | 4 | 排序逻辑错误 | 待修复 | 2026-04-22 | TagServiceImpl.buildSort 中 videocount 映射错误 |
+| 高 | 5 | H2控制台安全问题 | 待修复 | | |
+| 中 | 6 | 批量操作效率低 | 待修复 | 2026-04-22 | 循环处理导致N+1查询，需优化批量操作 |
+| 中 | 7 | 并发更新问题 | 待修复 | 2026-04-22 | PlayerServiceImpl.incrementPlayCount 非原子操作 |
+| 中 | 8 | 测试质量问题 | 待修复 | 2026-04-22 | 测试命名不规范、覆盖率不足、断言不精确 |
+| 中 | 9 | 安全隐患 | 待修复 | 2026-04-22 | 文件类型验证不足、路径遍历防护需加强 |
+| 中 | 10 | 代码重复与异常类型不统一 | 待修复 | 2026-04-22 | 多处代码重复，异常类型不一致 |
+| 中 | 11 | DTO未使用Java 21 Record | 待修复 | | |
+| 中 | 12 | 配置类使用不当 | 待修复 | | |
+| 中 | 13 | 文件上传安全增强 | 待修复 | | |
+| 中 | 14 | 缺少参数验证异常处理 | 待修复 | | |
+| 低 | 15 | 代码风格统一 | 待修复 | | |
+| 低 | 16 | 添加必要的注释 | 待修复 | | |
+| 低 | 17 | 提取魔法值为常量 | 待修复 | | |
+| 低 | 18 | 使用Actuator监控端点 | 待修复 | | |
+| 低 | 19 | 未使用Problem Details | 待评估 | | |
+| 低 | 20 | 日志增强 | 待修复 | | |
+| 低 | 21 | 输入验证增强 | 待修复 | | |
 
 ---
 
