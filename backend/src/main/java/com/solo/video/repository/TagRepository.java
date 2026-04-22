@@ -24,9 +24,9 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
     @Query("SELECT COUNT(DISTINCT v.id) FROM Tag t JOIN t.videos v WHERE t.id = :tagId")
     long countVideosByTagId(@Param("tagId") Long tagId);
     
-    @Query("SELECT t FROM Tag t LEFT JOIN t.videos v GROUP BY t.id ORDER BY COUNT(v.id) ASC")
+    @Query("SELECT t FROM Tag t LEFT JOIN t.videos v GROUP BY t.id ORDER BY COUNT(DISTINCT v.id) ASC")
     List<Tag> findAllOrderByVideoCountAsc();
     
-    @Query("SELECT t FROM Tag t LEFT JOIN t.videos v GROUP BY t.id ORDER BY COUNT(v.id) DESC")
+    @Query("SELECT t FROM Tag t LEFT JOIN t.videos v GROUP BY t.id ORDER BY COUNT(DISTINCT v.id) DESC")
     List<Tag> findAllOrderByVideoCountDesc();
 }
