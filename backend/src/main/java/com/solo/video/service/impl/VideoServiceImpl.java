@@ -12,7 +12,7 @@ import com.solo.video.service.FileStorageService;
 import com.solo.video.service.VideoService;
 import com.solo.video.util.FileUtil;
 import com.solo.video.util.StringUtil;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

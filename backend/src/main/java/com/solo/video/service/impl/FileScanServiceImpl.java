@@ -5,7 +5,7 @@ import com.solo.video.entity.Video;
 import com.solo.video.repository.VideoRepository;
 import com.solo.video.service.FileScanService;
 import com.solo.video.util.FileUtil;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

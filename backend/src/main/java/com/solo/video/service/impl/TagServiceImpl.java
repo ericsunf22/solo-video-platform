@@ -10,7 +10,7 @@ import com.solo.video.repository.VideoRepository;
 import com.solo.video.repository.VideoTagRepository;
 import com.solo.video.service.TagService;
 import com.solo.video.util.StringUtil;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
