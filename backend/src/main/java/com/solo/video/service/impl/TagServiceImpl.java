@@ -31,9 +31,13 @@ public class TagServiceImpl implements TagService {
     @Override
     public List<TagResponse> getAllTags(String keyword, String sortBy, String sortOrder) {
         List<Tag> tags;
+        String sortByLower = sortBy != null ? sortBy.toLowerCase() : "";
         
         if (StringUtil.isNotBlank(keyword)) {
             tags = tagRepository.findByNameContainingIgnoreCase(keyword.trim());
+        } else if ("videocount".equals(sortByLower)) {
+            boolean isAsc = "asc".equalsIgnoreCase(sortOrder);
+            tags = isAsc ? tagRepository.findAllOrderByVideoCountAsc() : tagRepository.findAllOrderByVideoCountDesc();
         } else {
             Sort sort = buildSort(sortBy, sortOrder);
             tags = tagRepository.findAll(sort);
@@ -145,7 +149,6 @@ public class TagServiceImpl implements TagService {
     private Sort buildSort(String sortBy, String sortOrder) {
         String property = switch (sortBy != null ? sortBy.toLowerCase() : "") {
             case "name" -> "name";
-            case "videocount" -> "name";
             default -> "createdAt";
         };
         

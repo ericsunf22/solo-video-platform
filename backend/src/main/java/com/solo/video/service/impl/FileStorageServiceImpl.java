@@ -27,6 +27,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class FileStorageServiceImpl implements FileStorageService {
     
+    private static final int MAX_FILE_NAME_LENGTH = 50;
+    private static final int UUID_SHORT_LENGTH = 8;
+    private static final String DATE_DIR_PATTERN = "yyyy/MM/dd";
+    private static final String SAFE_FILE_NAME_REGEX = "[^a-zA-Z0-9_-]";
+    private static final String SAFE_FILE_NAME_REPLACEMENT = "_";
+    
     private final FileStorageConfig fileStorageConfig;
     private Path storagePath;
     private Path coverPath;
@@ -87,7 +93,7 @@ public class FileStorageServiceImpl implements FileStorageService {
                 Files.createDirectories(subPath);
                 targetPath = subPath.resolve(uniqueFileName);
             } else {
-                String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+                String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern(DATE_DIR_PATTERN));
                 Path datePath = storagePath.resolve(dateDir);
                 Files.createDirectories(datePath);
                 targetPath = datePath.resolve(uniqueFileName);
@@ -164,12 +170,12 @@ public class FileStorageServiceImpl implements FileStorageService {
         String extension = FileUtil.getFileExtension(originalFileName);
         String fileNameWithoutExt = FileUtil.getFileNameWithoutExtension(originalFileName);
         
-        String safeFileName = fileNameWithoutExt.replaceAll("[^a-zA-Z0-9_-]", "_");
-        if (safeFileName.length() > 50) {
-            safeFileName = safeFileName.substring(0, 50);
+        String safeFileName = fileNameWithoutExt.replaceAll(SAFE_FILE_NAME_REGEX, SAFE_FILE_NAME_REPLACEMENT);
+        if (safeFileName.length() > MAX_FILE_NAME_LENGTH) {
+            safeFileName = safeFileName.substring(0, MAX_FILE_NAME_LENGTH);
         }
         
-        String uniqueId = UUID.randomUUID().toString().substring(0, 8);
+        String uniqueId = UUID.randomUUID().toString().substring(0, UUID_SHORT_LENGTH);
         String timestamp = String.valueOf(System.currentTimeMillis());
         
         if (extension == null || extension.isEmpty()) {
