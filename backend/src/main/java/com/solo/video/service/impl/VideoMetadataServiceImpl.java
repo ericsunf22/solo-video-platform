@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solo.video.config.FileStorageConfig;
 import com.solo.video.dto.VideoMetadata;
-import com.solo.video.service.FileStorageService;
 import com.solo.video.service.VideoMetadataService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 public class VideoMetadataServiceImpl implements VideoMetadataService {
     
     private final FileStorageConfig fileStorageConfig;
-    private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
     
     private Path coverPath;
@@ -129,8 +127,9 @@ public class VideoMetadataServiceImpl implements VideoMetadataService {
             String resolution = extractResolution(root);
             String coverPathStr = null;
             
-            if (extractCover && ffmpegAvailable && duration != null && duration > 0) {
-                coverPathStr = extractCover(videoPath, duration);
+            if (extractCover && ffmpegAvailable) {
+                long effectiveDuration = (duration != null && duration > 0) ? duration : 30;
+                coverPathStr = extractCover(videoPath, effectiveDuration);
             }
             
             return VideoMetadata.success(duration, resolution, coverPathStr);
@@ -160,25 +159,85 @@ public class VideoMetadataServiceImpl implements VideoMetadataService {
     private Long extractDuration(JsonNode root) {
         try {
             JsonNode format = root.get("format");
-            if (format != null && format.has("duration")) {
-                String durationStr = format.get("duration").asText();
-                double duration = Double.parseDouble(durationStr);
-                return Math.round(duration);
+            if (format != null) {
+                if (format.has("duration")) {
+                    String durationStr = format.get("duration").asText();
+                    try {
+                        double duration = Double.parseDouble(durationStr);
+                        log.debug("从 format.duration 提取到时长: {}秒", duration);
+                        return Math.round(duration);
+                    } catch (NumberFormatException e) {
+                        log.debug("format.duration 解析失败: {}", durationStr);
+                    }
+                }
+                
+                if (format.has("tags")) {
+                    JsonNode tags = format.get("tags");
+                    if (tags.has("DURATION")) {
+                        String durationStr = tags.get("DURATION").asText();
+                        Long duration = parseDurationString(durationStr);
+                        if (duration != null) {
+                            log.debug("从 format.tags.DURATION 提取到时长: {}秒", duration);
+                            return duration;
+                        }
+                    }
+                }
             }
             
             JsonNode streams = root.get("streams");
             if (streams != null && streams.isArray()) {
                 for (JsonNode stream : streams) {
-                    String codecType = stream.has("codec_type") ? stream.get("codec_type").asText() : null;
-                    if ("video".equals(codecType) && stream.has("duration")) {
+                    if (stream.has("duration")) {
                         String durationStr = stream.get("duration").asText();
-                        double duration = Double.parseDouble(durationStr);
-                        return Math.round(duration);
+                        try {
+                            double duration = Double.parseDouble(durationStr);
+                            String codecType = stream.has("codec_type") ? stream.get("codec_type").asText() : "unknown";
+                            log.debug("从 {} 流的 duration 提取到时长: {}秒", codecType, duration);
+                            return Math.round(duration);
+                        } catch (NumberFormatException e) {
+                            log.debug("stream.duration 解析失败: {}", durationStr);
+                        }
+                    }
+                    
+                    if (stream.has("tags")) {
+                        JsonNode tags = stream.get("tags");
+                        if (tags.has("DURATION")) {
+                            String durationStr = tags.get("DURATION").asText();
+                            Long duration = parseDurationString(durationStr);
+                            if (duration != null) {
+                                String codecType = stream.has("codec_type") ? stream.get("codec_type").asText() : "unknown";
+                                log.debug("从 {} 流的 tags.DURATION 提取到时长: {}秒", codecType, duration);
+                                return duration;
+                            }
+                        }
                     }
                 }
             }
+            
+            log.warn("无法从视频元数据中提取时长");
         } catch (Exception e) {
             log.warn("提取视频时长失败: {}", e.getMessage());
+        }
+        return null;
+    }
+    
+    private Long parseDurationString(String durationStr) {
+        try {
+            if (durationStr == null || durationStr.trim().isEmpty()) {
+                return null;
+            }
+            
+            if (durationStr.matches("\\d{2}:\\d{2}:\\d{2}\\.\\d+")) {
+                String[] parts = durationStr.split(":");
+                if (parts.length == 3) {
+                    int hours = Integer.parseInt(parts[0]);
+                    int minutes = Integer.parseInt(parts[1]);
+                    double seconds = Double.parseDouble(parts[2]);
+                    return Math.round(hours * 3600 + minutes * 60 + seconds);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("解析时长字符串失败: {}", durationStr);
         }
         return null;
     }
@@ -206,49 +265,92 @@ public class VideoMetadataServiceImpl implements VideoMetadataService {
     
     private String extractCover(Path videoPath, long duration) {
         try {
-            double extractTime = Math.min(duration * 0.1, 10.0);
-            
-            String coverFileName = UUID.randomUUID() + ".jpg";
-            Path outputCoverPath = coverPath.resolve(coverFileName);
-            
             if (!Files.exists(coverPath)) {
                 Files.createDirectories(coverPath);
             }
             
-            List<String> cmd = new ArrayList<>();
-            cmd.add(getAvailableCommand(FFMPEG_COMMANDS));
-            cmd.add("-ss");
-            cmd.add(String.format("%.3f", extractTime));
-            cmd.add("-i");
-            cmd.add(videoPath.toString());
-            cmd.add("-vframes");
-            cmd.add("1");
-            cmd.add("-q:v");
-            cmd.add("2");
-            cmd.add("-y");
-            cmd.add(outputCoverPath.toString());
+            List<Double> extractTimes = new ArrayList<>();
             
-            log.debug("执行 FFmpeg 提取封面: {}", String.join(" ", cmd));
-            
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            
-            boolean success = process.waitFor(60, TimeUnit.SECONDS);
-            
-            if (!success || process.exitValue() != 0) {
-                log.warn("FFmpeg 提取封面失败，退出码: {}", process.exitValue());
-                return null;
+            if (duration > 0) {
+                extractTimes.add(Math.min(duration * 0.05, 5.0));
+                extractTimes.add(Math.min(duration * 0.1, 10.0));
+                extractTimes.add(Math.min(duration * 0.2, 20.0));
+                extractTimes.add(Math.min(duration * 0.5, 60.0));
+            } else {
+                extractTimes.add(1.0);
+                extractTimes.add(3.0);
+                extractTimes.add(5.0);
+                extractTimes.add(10.0);
             }
             
-            if (Files.exists(outputCoverPath)) {
-                log.info("封面图提取成功: {}", outputCoverPath);
-                return coverFileName;
+            for (double extractTime : extractTimes) {
+                log.debug("尝试在时间点 {} 秒提取封面", extractTime);
+                
+                String coverFileName = UUID.randomUUID() + ".jpg";
+                Path outputCoverPath = coverPath.resolve(coverFileName);
+                
+                List<String> cmd = new ArrayList<>();
+                cmd.add(getAvailableCommand(FFMPEG_COMMANDS));
+                cmd.add("-ss");
+                cmd.add(String.format("%.3f", extractTime));
+                cmd.add("-i");
+                cmd.add(videoPath.toString());
+                cmd.add("-vframes");
+                cmd.add("1");
+                cmd.add("-q:v");
+                cmd.add("2");
+                cmd.add("-y");
+                cmd.add(outputCoverPath.toString());
+                
+                log.debug("执行 FFmpeg 提取封面: {}", String.join(" ", cmd));
+                
+                try {
+                    ProcessBuilder pb = new ProcessBuilder(cmd);
+                    pb.redirectErrorStream(true);
+                    Process process = pb.start();
+                    
+                    boolean success = process.waitFor(30, TimeUnit.SECONDS);
+                    
+                    if (success && process.exitValue() == 0) {
+                        if (Files.exists(outputCoverPath) && Files.size(outputCoverPath) > 1000) {
+                            log.info("封面图提取成功 (时间点: {}秒): {}", extractTime, outputCoverPath);
+                            return coverFileName;
+                        } else {
+                            log.debug("封面文件过小或不存在，尝试下一个时间点");
+                            if (Files.exists(outputCoverPath)) {
+                                Files.delete(outputCoverPath);
+                            }
+                        }
+                    } else {
+                        log.debug("FFmpeg 提取封面失败 (时间点: {}秒)，退出码: {}", extractTime, process.exitValue());
+                    }
+                } catch (Exception e) {
+                    log.debug("提取封面失败 (时间点: {}秒): {}", extractTime, e.getMessage());
+                }
             }
+            
+            log.warn("所有时间点提取封面均失败: {}", videoPath);
             
         } catch (Exception e) {
             log.warn("提取视频封面失败: {}", videoPath, e);
         }
         return null;
+    }
+    
+    @Override
+    public void deleteCover(String coverFileName) {
+        if (coverFileName == null || coverFileName.trim().isEmpty()) {
+            return;
+        }
+        
+        try {
+            Path coverFile = this.coverPath.resolve(coverFileName);
+            if (Files.exists(coverFile)) {
+                Files.delete(coverFile);
+                log.info("已删除封面文件: {}", coverFile);
+            }
+        } catch (Exception e) {
+            log.warn("删除封面文件失败: {}", coverFileName, e);
+        }
     }
 }

@@ -11,4 +11,6 @@ public interface VideoMetadataService {
     VideoMetadata extractMetadata(Path videoPath);
     
     VideoMetadata extractMetadata(Path videoPath, boolean extractCover);
+    
+    void deleteCover(String coverPath);
 }

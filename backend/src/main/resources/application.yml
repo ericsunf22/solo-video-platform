@@ -44,3 +44,15 @@ app:
       quality: 0.8
     stream:
       buffer-size: 8192
+  backup:
+    path: ./storage/backups
+    keep-days: 7
+    mysqldump-path: mysqldump
+    pgdump-path: pg_dump
+    scheduled:
+      enabled: true
+      cron: 0 0 2 * * ?
+
+info:
+  app:
+    version: 1.0.0

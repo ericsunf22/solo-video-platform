@@ -11,5 +11,5 @@ public class FolderScanRequest {
     
     private Boolean recursive = true;
     
-    private Boolean updateExisting = false;
+    private Boolean updateExisting = true;
 }
