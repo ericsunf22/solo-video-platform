@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -25,8 +26,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 @Slf4j
 @Service
@@ -57,6 +60,29 @@ public class VideoServiceImpl implements VideoService {
             spec = spec.and((root, query, cb) ->
                     cb.equal(root.get("isFavorite"), isFavorite)
             );
+        }
+        
+        boolean isNaturalSort = "title".equalsIgnoreCase(sortBy);
+        
+        if (isNaturalSort) {
+            List<Video> allVideos = videoRepository.findAll(spec);
+            
+            Comparator<Video> titleComparator = (v1, v2) -> {
+                int result = StringUtil.naturalOrderComparator().compare(v1.getTitle(), v2.getTitle());
+                return "asc".equalsIgnoreCase(sortOrder) ? result : -result;
+            };
+            
+            allVideos.sort(titleComparator);
+            
+            int start = (int) pageable.getOffset();
+            int end = Math.min(start + pageable.getPageSize(), allVideos.size());
+            
+            List<Video> pageContent = start < end ? allVideos.subList(start, end) : new ArrayList<>();
+            List<VideoResponse> responseContent = pageContent.stream()
+                    .map(videoMapper::toResponse)
+                    .toList();
+            
+            return new PageImpl<>(responseContent, pageable, allVideos.size());
         }
         
         Sort sort = buildSort(sortBy, sortOrder);

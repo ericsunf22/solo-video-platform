@@ -11,8 +11,15 @@ export const videoService = {
     sortBy?: string
     sortOrder?: string
   } = {}): Promise<PageResponse<Video>> => {
-    const response = await api.get<ApiResponse<PageResponse<Video>>>('/videos', { params })
-    return response.data.data
+    const response = await api.get<ApiResponse<{ content: Video[]; totalElements: number; number: number; size: number; totalPages: number }>>('/videos', { params })
+    const data = response.data.data
+    return {
+      list: data.content,
+      total: data.totalElements,
+      page: data.number + 1,
+      size: data.size,
+      totalPages: data.totalPages,
+    }
   },
 
   getVideoById: async (id: number): Promise<Video> => {
@@ -84,8 +91,15 @@ export const videoService = {
     sortBy?: string
     sortOrder?: string
   } = {}): Promise<PageResponse<Video>> => {
-    const response = await api.get<ApiResponse<PageResponse<Video>>>('/favorites', { params })
-    return response.data.data
+    const response = await api.get<ApiResponse<{ content: Video[]; totalElements: number; number: number; size: number; totalPages: number }>>('/favorites', { params })
+    const data = response.data.data
+    return {
+      list: data.content,
+      total: data.totalElements,
+      page: data.number + 1,
+      size: data.size,
+      totalPages: data.totalPages,
+    }
   },
 
   toggleFavorite: async (videoId: number): Promise<boolean> => {
@@ -105,8 +119,15 @@ export const videoService = {
     page?: number
     size?: number
   } = {}): Promise<PageResponse<PlayHistory>> => {
-    const response = await api.get<ApiResponse<PageResponse<PlayHistory>>>('/player/history', { params })
-    return response.data.data
+    const response = await api.get<ApiResponse<{ content: PlayHistory[]; totalElements: number; number: number; size: number; totalPages: number }>>('/player/history', { params })
+    const data = response.data.data
+    return {
+      list: data.content,
+      total: data.totalElements,
+      page: data.number + 1,
+      size: data.size,
+      totalPages: data.totalPages,
+    }
   },
 
   savePlayProgress: async (request: PlayProgressRequest): Promise<void> => {
